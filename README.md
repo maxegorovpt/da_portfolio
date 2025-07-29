@@ -15,6 +15,7 @@ This repository is a reflection of my skills in data analysis, statistical reaso
 
 You can reach me via:  
 - Email: [egorovmaxkrd@gmail.com](mailto:egorovmaxkrd@gmail.com)  
-- Telegram: [@maxegorovpr](https://t.me/maxegorovpr)
+- Telegram: [@maxegorovpr](https://t.me/maxegorovpt)
+- - LinkedIn: [Maxim Egorov](https://www.linkedin.com/in/maxim-egorov)
 
 Feel free to explore!
