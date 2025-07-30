@@ -8,6 +8,7 @@ Here I share:
 - Public research and test assignments  
 
 This repository is a reflection of my skills in data analysis, statistical reasoning, and business insight.
+
 Feel free to explore!
 
 ---
