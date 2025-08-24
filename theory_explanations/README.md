@@ -1,8 +1,4 @@
-# 📚 `theory_explanations` — Statistics & Data Analysis Theory (with Mini-Projects)
-
-A curated, **hands-on theory hub** for your `da_portfolio`. Each topic pairs a short explanation with a tiny, reproducible project (notebook or markdown) so you learn by doing.
-
-> **Who is this for?** From absolute beginners to advanced learners. Work top-down or jump to what you need.
+# 📚 Statistics & Data Analysis Theory 
 
 ---
 
