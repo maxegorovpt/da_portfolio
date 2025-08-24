@@ -14,41 +14,7 @@
 
 ---
 
-## What’s in this folder
-
-Short explanations + bite-sized, runnable examples. Every topic should have:
-
-* A **`README.md`** (concept overview + references)
-* A **notebook** (`.ipynb`) or **markdown walkthrough**
-* A minimal **dataset** (CSV/parquet or simulated)
-* One figure or chart (PNG/SVG)
-
-> 📌 *Goal:* Make ideas “stick” with tiny experiments you can run in minutes.
-
----
-
-## How to use this folder
-
-1. Pick a topic below.
-2. Open its subfolder and start with `README.md` or the notebook.
-3. Re-run the code, tweak parameters, and save notes.
-4. Commit your changes to keep a growing learning trail in your portfolio.
-
-**Time-boxed workflow:** 25–45 minutes per topic: *read → run → tweak → reflect → commit*.
-
----
-
-## Learning paths
-
-* **Beginner track:** Entry-Level → Intermediate (1–4) → Advanced (8, 9) basics
-* **Analyst track:** Entry-Level → Intermediate (2, 3, 4, 6, 7, 8, 10) → Advanced (3, 6, 7, 9)
-* **Data scientist track:** Intermediate → Advanced full set
-
-> ✅ You can jump around—each topic is self-contained.
-
----
-
-## Topics & mini-projects
+## Topics 
 
 ### 🟢 **Entry-Level (Foundational Concepts)**
 
