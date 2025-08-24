@@ -8,7 +8,7 @@ This folder contains multiple business case projects and analyses, covering area
 | [churn_analysis](./churn_analysis)                       | Study of customer churn patterns and the factors influencing retention.     |
 | [claims_trends](./claims_trends)                        | Examination of claims trends over time to identify patterns and anomalies. |
 | [errors_in_data](./errors_in_data)                        | Identification and investigation of errors and inconsistencies in datasets.|
-| [game_play_analysis](./game_play_analysis)                    | Analysis of user behavior and engagement in PC games.                        |
+| [game_play_analysis](./game_play_analysis)                    | Analysis of user behavior and engagement in PC game.                        |
 | [power_bi_dashboard](./power_bi_dashboard)                    | Development of a Power BI dashboard to visualize key business metrics.      |
 | [predictive_modelling_evaluation](./predictive_modelling_evaluation)       | Evaluation of predictive models, including performance metrics and comparisons.|
 | [ride_tech_research](./ride_tech_research)                    | Research and analysis related to bike-share company trends and innovations.|
