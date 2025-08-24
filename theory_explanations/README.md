@@ -16,12 +16,6 @@ A curated, **hands-on theory hub** for your `da_portfolio`. Each topic pairs a s
    * [Entry-Level (Foundational)](#-entry-level-foundational-concepts)
    * [Intermediate (Inference & Modeling)](#-intermediate-level-core-inference--modeling)
    * [Advanced / Pro](#-advanced--pro-level-analytical--theoretical)
-5. [Folder structure & naming](#folder-structure--naming)
-6. [Template to start a new topic](#template-to-start-a-new-topic)
-7. [Contributing & style guide](#contributing--style-guide)
-8. [Environment & setup](#environment--setup)
-9. [FAQ](#faq)
-10. [License](#license)
 
 ---
 
