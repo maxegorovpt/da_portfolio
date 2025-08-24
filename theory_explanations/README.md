@@ -63,8 +63,8 @@ Short explanations + bite-sized, runnable examples. Every topic should have:
 |  5 | **Sampling Methods**         | Compare random, stratified, and cluster sampling using toy data.                  | ⏳                                                           |
 |  6 | **Mean vs Median vs Mode**   | Show how outliers affect each measure using visualizations.                       | ⏳                                                           |
 |  7 | **Boxplots and Outliers**    | Create boxplots for real data and identify outliers.                              | ⏳                                                           |
-|  8 | **Correlation vs Causation** | Use classic examples (e.g., ice cream vs drowning) to show spurious correlations. | ⏳                                                           |
-|  9 | **Simpson’s Paradox**        | Compare aggregated vs disaggregated trends.                                       | ⏳                                                           |
+|  8 | **Correlation vs Causation** | Use classic examples (e.g., ice cream vs drowning) to show spurious correlations. | ✅ [Notebook](./entry_level_01_correlation_vs_causation.ipynb) |
+|  9 | **Simpson’s Paradox**        | Compare aggregated vs disaggregated trends.                                       | ✅ [Notebook](./entry_level_01_simpsons_paradox.ipynb) |
 | 10 | **Frequency Distributions**  | Show how frequency tables are built and interpreted.                              | ⏳                                                           |
 
 ---
@@ -85,11 +85,6 @@ Short explanations + bite-sized, runnable examples. Every topic should have:
 |  8 | **Data Normalization & Scaling**   | Show impact on k-NN or clustering algorithms.                             | ⏳      |
 |  9 | **A/B Testing & p-hacking**        | Simulate multiple comparisons and discuss false discoveries.              | ⏳      |
 | 10 | **Time Series Decomposition**      | Apply STL decomposition to a time series (e.g., airline passengers).      | ⏳      |
-
-**Additional Notebooks:**
-
-* ✅ [Correlation vs Causation](./intermediate_level_01_correlation_vs_causation.ipynb)
-* ✅ [Simpson’s Paradox](./intermediate_level_02_simpsons_paradox.ipynb)
 
 ---
 
