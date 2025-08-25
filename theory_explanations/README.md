@@ -2,11 +2,7 @@
 ---
 
 ## Table of Contents
-
-1. [What’s in this folder](#whats-in-this-folder)
-2. [How to use this folder](#how-to-use-this-folder)
-3. [Learning paths](#learning-paths)
-4. [Topics & mini-projects](#topics--mini-projects)
+[Topics & mini-projects](#topics--mini-projects)
 
    * [Entry-Level (Foundational)](#-entry-level-foundational-concepts)
    * [Intermediate (Inference & Modeling)](#-intermediate-level-core-inference--modeling)
