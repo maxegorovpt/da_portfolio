@@ -15,5 +15,6 @@ This folder contains multiple business case projects and analyses, covering area
 | 9   | [step_tracking_impact](./step_tracking_impact)                  | Assessment of a step-tracking app and its impact on health and behavior.    |
 | 10  | [time_series_analysis_in_progress](./time_series_analysis_in_progress)      | Ongoing analysis of time series data to identify trends, seasonality, and forecasts.|
 | 11  | [video_service_ltv](./video_service_ltv)                     | Analysis of customer lifetime value (LTV) for a video service platform.    |
+| 12  | [Trendsetters Research](./trendsetters_research)               | Research project focused on trends and insights in the Trendsetters study.  |
 
 Each project folder may contain scripts, notebooks, datasets, and documentation relevant to its analysis or modeling tasks.
