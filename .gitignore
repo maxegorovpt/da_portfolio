@@ -2,3 +2,11 @@
 **/.ipynb_checkpoints/
 **/.jupyter/
 .env
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.vscode/
+requirements.txt
