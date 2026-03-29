@@ -31,6 +31,7 @@ Data Analyst with experience in fintech, healthcare products, and telecom market
 - LinkedIn: [Maxim Egorov](https://www.linkedin.com/in/maxim-egorov)
 - Email: [egorovmaxkrd@gmail.com](mailto:egorovmaxkrd@gmail.com)  
 - Telegram: [@maxegorovpt](https://t.me/maxegorovpt)
+- Blog: [Substack](https://substack.com/@maximegorov/posts)
 ​
 
 
