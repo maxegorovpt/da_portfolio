@@ -27,6 +27,15 @@ Data Analyst with experience in fintech, healthcare products, and telecom market
 - Predictive models (retention, LTV, cohort analysis)
 - Dev Tools: Git, GitHub, Bitbucket, Docker
 
+## Tech Stack
+
+![SQL](https://img.shields.io/badge/SQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)
+![ClickHouse](https://img.shields.io/badge/ClickHouse-FFCC01?style=for-the-badge&logo=clickhouse&logoColor=black)
+![Airflow](https://img.shields.io/badge/Airflow-017CEE?style=for-the-badge&logo=apacheairflow&logoColor=white)
+![dbt](https://img.shields.io/badge/dbt-FF694B?style=for-the-badge&logo=dbt&logoColor=white)
+
 **🤝 Connect with Me**
 - LinkedIn: [Maxim Egorov](https://www.linkedin.com/in/maxim-egorov)
 - Email: [egorovmaxkrd@gmail.com](mailto:egorovmaxkrd@gmail.com)  
