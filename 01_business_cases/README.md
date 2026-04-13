@@ -13,5 +13,6 @@ This folder contains a selection of business case projects and analyses, coverin
 | 7   | [step_tracking_impact](./step_tracking_impact)          | Assessment of a step-tracking app and its impact on health and behavior.    |
 | 8   | [time_series_analysis](./time_series_analysis)          | Analysis of time series data to identify trends, seasonality, and forecasting patterns. |
 | 9   | [video_service_ltv](./video_service_cohort_analysis)                | Analysis of customer lifetime value (LTV) for a video service platform.     |
+| 10   | [ab_test_desing_analysis](./ab_test_desing_analysis)                | Design and implementation of controlled A/B tests to measure feature impact and user behavior.     |
 
 Each project folder may contain scripts, notebooks, datasets, and documentation relevant to its analysis or modeling tasks.
