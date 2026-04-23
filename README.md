@@ -1,6 +1,6 @@
 # Maxim Egorov – Data Analytics Portfolio
 
-Welcome to my data analytics portfolio. It showcases practical projects in product analytics, payment systems, fraud detection, and data quality from fintech, healthcare, and telecom.
+Welcome to my data analytics portfolio. It showcases practical projects in product analytics, payment systems, fraud detection, and data quality from fintech, healthcare, and telecom!
 
 ---
 
