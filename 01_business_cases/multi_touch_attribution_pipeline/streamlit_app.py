@@ -53,45 +53,33 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 
 
-def safe_read_csv(path, date_cols=None):
+def safe_read_csv(path):
     if not path.exists():
         return pd.DataFrame()
 
     df = pd.read_csv(path)
-
     df.columns = (
         df.columns.astype(str)
         .str.strip()
         .str.lower()
+        .str.replace(" ", "_")
     )
-
-    for col in date_cols or []:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
-
     return df
 
 
 @st.cache_data
 def load_all_data():
-    google = safe_read_csv(
-        BASE_DIR / "seeds" / "raw_google_ads" / "ad_performance_report.csv",
-        ["date_day"]
-    )
+    google = safe_read_csv(BASE_DIR / "seeds" / "raw_google_ads" / "ad_performance_report.csv")
+    meta = safe_read_csv(BASE_DIR / "seeds" / "raw_meta_ads" / "ad_insights.csv")
+    linkedin = safe_read_csv(BASE_DIR / "seeds" / "raw_linkedin_ads" / "ad_analytics_by_campaign.csv")
+    hubspot = safe_read_csv(BASE_DIR / "seeds" / "raw_hubspot" / "contact.csv")
 
-    meta = safe_read_csv(
-        BASE_DIR / "seeds" / "raw_meta_ads" / "ad_insights.csv",
-        ["date_day"]
-    )
-
-    linkedin = safe_read_csv(
-        BASE_DIR / "seeds" / "raw_linkedin_ads" / "ad_analytics_by_campaign.csv",
-        ["date_day"]
-    )
-
-    hubspot = safe_read_csv(
-        BASE_DIR / "seeds" / "raw_hubspot" / "contact.csv"
-    )
+    if not google.empty and "date" in google.columns:
+        google = google.rename(columns={"date": "date_day"})
+    if not meta.empty and "date_start" in meta.columns:
+        meta = meta.rename(columns={"date_start": "date_day"})
+    if not linkedin.empty and "day" in linkedin.columns:
+        linkedin = linkedin.rename(columns={"day": "date_day"})
 
     return {
         "google_ads": google,
@@ -112,8 +100,10 @@ def normalize_channel_frames(frames):
         if "channel" not in df.columns:
             df["channel"] = channel_name
 
-        required_defaults = {
-            "date_day": pd.Timestamp("2025-01-01"),
+        if "date_day" not in df.columns:
+            continue
+
+        defaults = {
             "campaign_name": f"{channel_name}_campaign",
             "spend_usd": 0.0,
             "impressions": 0,
@@ -121,11 +111,13 @@ def normalize_channel_frames(frames):
             "conversions": 0,
         }
 
-        for col, default in required_defaults.items():
+        for col, default in defaults.items():
             if col not in df.columns:
                 df[col] = default
 
         df["date_day"] = pd.to_datetime(df["date_day"], errors="coerce")
+        df = df.dropna(subset=["date_day"])
+
         df["spend_usd"] = pd.to_numeric(df["spend_usd"], errors="coerce").fillna(0)
         df["impressions"] = pd.to_numeric(df["impressions"], errors="coerce").fillna(0)
         df["clicks"] = pd.to_numeric(df["clicks"], errors="coerce").fillna(0)
