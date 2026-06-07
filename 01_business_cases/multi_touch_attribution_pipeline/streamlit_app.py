@@ -377,16 +377,33 @@ with tab1:
 
     with col_a:
         st.markdown('<p class="section-header">Daily spend by channel</p>', unsafe_allow_html=True)
-        daily = t_filt.groupby(["date_day", "channel"], as_index=False)["spend_usd"].sum()
-        fig = px.area(
-            daily,
-            x="date_day",
-            y="spend_usd",
-            color="channel",
-            color_discrete_map=CHANNEL_COLORS,
-            labels={"spend_usd": "Spend (USD)", "date_day": ""},
+        daily = (
+            t_filt.groupby(["date_day", "channel"], as_index=False)["spend_usd"]
+            .sum()
+            .sort_values(["date_day", "channel"])
         )
-        fig.update_layout(legend_title="", margin=dict(t=10, b=10), height=300, hovermode="x unified", template="plotly")
+
+        fig = go.Figure()
+
+        for ch in [c for c in all_channels if c in daily["channel"].unique()]:
+            d = daily[daily["channel"] == ch]
+            fig.add_trace(go.Scatter(
+                x=d["date_day"],
+                y=d["spend_usd"],
+                mode="lines",
+                name=ch,
+                line=dict(color=CHANNEL_COLORS.get(ch, "#999999"), width=2.5),
+                stackgroup="one",
+                hovertemplate="%{x|%Y-%m-%d}<br>%{fullData.name}: $%{y:,.0f}<extra></extra>",
+            ))
+
+        fig.update_layout(
+            legend_title="",
+            margin=dict(t=10, b=10),
+            height=300,
+            hovermode="x unified",
+            template="plotly",
+        )
         st.plotly_chart(fig, use_container_width=True, theme=None)
 
     with col_b:
