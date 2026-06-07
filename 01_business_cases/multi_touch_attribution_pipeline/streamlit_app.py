@@ -61,10 +61,24 @@ def safe_read_csv(path, date_cols=None):
 
 @st.cache_data
 def load_all_data():
-    google = safe_read_csv(DATA_DIR / "google_ads.csv", ["date_day"])
-    meta = safe_read_csv(DATA_DIR / "meta_ads.csv", ["date_day"])
-    linkedin = safe_read_csv(DATA_DIR / "linkedin_ads.csv", ["date_day"])
-    hubspot = safe_read_csv(DATA_DIR / "hubspot_contacts.csv")
+    google = safe_read_csv(
+        BASE_DIR / "seeds" / "raw_google_ads" / "ad_performance_report.csv",
+        ["date_day"]
+    )
+
+    meta = safe_read_csv(
+        BASE_DIR / "seeds" / "raw_meta_ads" / "ad_insights.csv",
+        ["date_day"]
+    )
+
+    linkedin = safe_read_csv(
+        BASE_DIR / "seeds" / "raw_linkedin_ads" / "ad_analytics_by_campaign.csv",
+        ["date_day"]
+    )
+
+    hubspot = safe_read_csv(
+        BASE_DIR / "seeds" / "raw_hubspot" / "contact.csv"
+    )
 
     return {
         "google_ads": google,
@@ -72,7 +86,6 @@ def load_all_data():
         "linkedin_ads": linkedin,
         "hubspot": hubspot,
     }
-
 
 def normalize_channel_frames(frames):
     normalized = []
