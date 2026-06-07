@@ -150,22 +150,63 @@ def normalize_channel_frames(frames):
 def prepare_hubspot(hubspot):
     hubspot = hubspot.copy()
 
-    defaults = {
-        "contact_id": range(1, len(hubspot) + 1) if len(hubspot) else [],
-        "first_touch_channel": "direct_traffic",
-        "lifecycle_stage": "lead",
-        "is_customer": 0,
-        "days_lead_to_close": None,
-    }
+    if hubspot.empty:
+        return pd.DataFrame(columns=[
+            "contact_id", "first_touch_channel", "lifecycle_stage",
+            "is_customer", "days_lead_to_close"
+        ])
 
-    for col, default in defaults.items():
-        if col not in hubspot.columns:
-            hubspot[col] = default
+    hubspot.columns = (
+        hubspot.columns.astype(str)
+        .str.strip()
+        .str.lower()
+        .str.replace(" ", "_")
+    )
 
-    hubspot["is_customer"] = pd.to_numeric(hubspot["is_customer"], errors="coerce").fillna(0).astype(int)
-    hubspot["days_lead_to_close"] = pd.to_numeric(hubspot["days_lead_to_close"], errors="coerce")
+    if "contact_id" not in hubspot.columns:
+        hubspot["contact_id"] = range(1, len(hubspot) + 1)
 
-    return hubspot
+    if "lifecyclestage" in hubspot.columns:
+        hubspot["lifecycle_stage"] = hubspot["lifecyclestage"].astype(str).str.strip().str.lower()
+    elif "lifecycle_stage" not in hubspot.columns:
+        hubspot["lifecycle_stage"] = "lead"
+
+    if "hs_latest_source" in hubspot.columns:
+        hubspot["first_touch_channel"] = hubspot["hs_latest_source"].astype(str).str.strip().str.lower()
+    elif "first_touch_channel" not in hubspot.columns:
+        hubspot["first_touch_channel"] = "direct_traffic"
+
+    hubspot["is_customer"] = (hubspot["lifecycle_stage"] == "customer").astype(int)
+
+    if "createdate" in hubspot.columns:
+        hubspot["createdate_dt"] = pd.to_datetime(
+            pd.to_numeric(hubspot["createdate"], errors="coerce"),
+            unit="ms",
+            errors="coerce"
+        )
+    else:
+        hubspot["createdate_dt"] = pd.NaT
+
+    if "hs_lifecyclestage_customer_date" in hubspot.columns:
+        hubspot["customer_date_dt"] = pd.to_datetime(
+            pd.to_numeric(hubspot["hs_lifecyclestage_customer_date"], errors="coerce"),
+            unit="ms",
+            errors="coerce"
+        )
+    else:
+        hubspot["customer_date_dt"] = pd.NaT
+
+    hubspot["days_lead_to_close"] = (
+        hubspot["customer_date_dt"] - hubspot["createdate_dt"]
+    ).dt.days
+
+    return hubspot[[
+        "contact_id",
+        "first_touch_channel",
+        "lifecycle_stage",
+        "is_customer",
+        "days_lead_to_close"
+    ]]
 
 
 def compute_attribution(google, meta, linkedin, hubspot):
