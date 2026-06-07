@@ -1,4 +1,4 @@
-# ✈️ Airport Analytics — dbt Project
+# ✈️ Flight Analytics — dbt Project
 
 > Analytics engineering practice built on real flight data. Clean models, tested sources, documented schemas — the full stack.
 
