@@ -22,24 +22,29 @@ def inject_css():
     st.markdown(
         """
         <style>
-        .block-container {padding-top: 1.2rem; padding-bottom: 2rem;}
+        .block-container {
+            padding-top: 1.2rem;
+            padding-bottom: 2rem;
+        }
+
         [data-testid="stMetric"] {
-            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-            border: 1px solid rgba(15, 23, 42, 0.08);
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(148, 163, 184, 0.18);
             padding: 0.85rem 1rem;
             border-radius: 16px;
-            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
         }
-        .section-card {
-            background: #ffffff;
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            border-radius: 18px;
-            padding: 1rem 1rem 0.5rem 1rem;
-            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
-            margin-bottom: 1rem;
+
+        [data-testid="stMetricLabel"] {
+            color: rgba(226, 232, 240, 0.8);
         }
+
+        [data-testid="stMetricValue"] {
+            color: #f8fafc;
+        }
+
         .small-note {
-            color: #475569;
+            color: #94a3b8;
             font-size: 0.9rem;
             margin-top: -0.2rem;
             margin-bottom: 0.6rem;
