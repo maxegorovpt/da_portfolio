@@ -127,7 +127,3 @@ Then open [http://localhost:8080](http://localhost:8080).
 ## 🗺️ Related Work
 
 This project is part of a broader analytics portfolio. Check out the main profile for other projects across Python, SQL, and data engineering.
-
----
-
-*Built with ☕ and SQL*
