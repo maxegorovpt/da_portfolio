@@ -32,8 +32,8 @@ st.markdown("""
 
 CHANNEL_COLORS = {
     "google_ads": "#4285F4",
-    "meta_ads": "#1877F2",
-    "linkedin_ads": "#0A66C2",
+    "meta_ads": "#EA4335",
+    "linkedin_ads": "#34A853",
     "paid_search": "#5B8FF9",
     "paid_social": "#5AD8A6",
     "email": "#34A853",
