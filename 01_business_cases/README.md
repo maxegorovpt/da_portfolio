@@ -13,4 +13,5 @@ This folder contains a selection of business case projects and analyses, coverin
 | 9   | [time_series_analysis](./time_series_analysis)         | Analysis of time series data to identify trends, seasonality, and forecasting patterns. |
 | 10  | [video_service_ltv](./video_service_cohort_analysis)   | Analysis of customer lifetime value (LTV) for a video service platform.     |
 | 11  | [ab_test_desing_analysis](./ab_test_desing_analysis)   | Design and implementation of controlled A/B tests to measure feature impact and user behavior.     |
+
 Each project folder may contain scripts, notebooks, datasets, and documentation relevant to its analysis or modeling tasks.
