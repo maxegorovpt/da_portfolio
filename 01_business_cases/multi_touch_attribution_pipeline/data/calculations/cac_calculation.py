@@ -18,7 +18,7 @@ purchases = load_purchases_data(PURCHASES_FILE)
 ads = load_ads_data(ADS_DIR)
 cac = calculate_cac(purchases, ads)
 
-cac.to_csv(OUTPUT_FILE, index=False)
+cac.to_csv(OUTPUT_FILE, index=False, mode="w")
 print(f"Saved: {OUTPUT_FILE}")
 print("Rows in CAC:", len(cac))
 print(cac.head(20))

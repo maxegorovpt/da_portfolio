@@ -16,7 +16,7 @@ OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 purchases = load_purchases_data(PURCHASES_FILE)
 ltv = calculate_ltv(purchases)
 
-ltv.to_csv(OUTPUT_FILE, index=False)
+ltv.to_csv(OUTPUT_FILE, index=False, mode="w")
 print(f"Saved: {OUTPUT_FILE}")
 print("Rows in LTV:", len(ltv))
 print(ltv.head(20))
