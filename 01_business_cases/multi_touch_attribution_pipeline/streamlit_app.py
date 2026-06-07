@@ -42,11 +42,11 @@ CHANNEL_COLORS = {
     "google_ads": "#4285F4",
     "meta_ads": "#1877F2",
     "linkedin_ads": "#0A66C2",
+    "paid_search": "#4285F4",
+    "paid_social": "#1877F2",
     "email": "#34A853",
     "organic_search": "#FF6D00",
     "direct_traffic": "#9E9E9E",
-    "paid_search": "#4285F4",
-    "paid_social": "#1877F2",
 }
 
 BASE_DIR = Path(__file__).parent
