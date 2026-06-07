@@ -74,7 +74,7 @@ def _standardize_affiliate_frame(df):
     df = _dedup_columns(df)
 
     df["ad_source"]      = "affiliate"
-    df["platform"]       = "unknown"
+    df["platform"]       = _normalize_text(_get_series(df, "platform"), lower=True)
     df["affiliate_name"] = _normalize_text(_get_series(df, "affiliate_name"))
     df["affiliate_id"]   = _normalize_text(_get_series(df, "affiliate_id"))
     df["campaign"]       = _normalize_text(_get_series(df, "campaign"), lower=True)
