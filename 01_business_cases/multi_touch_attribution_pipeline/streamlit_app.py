@@ -74,12 +74,23 @@ def load_all_data():
     linkedin = safe_read_csv(BASE_DIR / "seeds" / "raw_linkedin_ads" / "ad_analytics_by_campaign.csv")
     hubspot = safe_read_csv(BASE_DIR / "seeds" / "raw_hubspot" / "contact.csv")
 
-    if not google.empty and "date" in google.columns:
-        google = google.rename(columns={"date": "date_day"})
-    if not meta.empty and "date_start" in meta.columns:
-        meta = meta.rename(columns={"date_start": "date_day"})
-    if not linkedin.empty and "day" in linkedin.columns:
-        linkedin = linkedin.rename(columns={"day": "date_day"})
+    if not google.empty:
+        if "date" in google.columns:
+            google = google.rename(columns={"date": "date_day"})
+        if "cost_micros" in google.columns:
+            google["spend_usd"] = pd.to_numeric(google["cost_micros"], errors="coerce").fillna(0) / 1_000_000
+
+    if not meta.empty:
+        if "date_start" in meta.columns:
+            meta = meta.rename(columns={"date_start": "date_day"})
+        if "spend" in meta.columns:
+            meta["spend_usd"] = pd.to_numeric(meta["spend"], errors="coerce").fillna(0)
+
+    if not linkedin.empty:
+        if "day" in linkedin.columns:
+            linkedin = linkedin.rename(columns={"day": "date_day"})
+        if "cost_in_usd" in linkedin.columns:
+            linkedin["spend_usd"] = pd.to_numeric(linkedin["cost_in_usd"], errors="coerce").fillna(0)
 
     return {
         "google_ads": google,
