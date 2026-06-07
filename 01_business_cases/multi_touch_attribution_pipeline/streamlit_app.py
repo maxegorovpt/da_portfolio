@@ -284,7 +284,7 @@ if touches.empty:
     st.error("No valid marketing CSV data found in ./seeds/raw_*/.")
     st.stop()
 
-touches["channel"] = normalize_channel_value(touches["channel"])
+touches["channel"] = touches["channel"].astype(str).str.strip().str.lower()
 hubspot["first_touch_channel"] = normalize_channel_value(hubspot["first_touch_channel"])
 
 if touches["date_day"].dropna().empty:
