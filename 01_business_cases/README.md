@@ -2,7 +2,7 @@
 This folder contains a selection of business case projects and analyses, covering areas such as predictive modeling, data analysis, trends, and performance evaluation.
 | No. | Project Name                         | Description                                                                 |
 |-----|-------------------------------------|-----------------------------------------------------------------------------|
-| 1   | [flights dbt_project](./flights_dbt_project)                           | Flight data analytics project built with dbt and PostgreSQL, from raw ingestion to marts with testing and documentation.                                               |
+| 1   | [flights_dbt_project](./flights_dbt_project)                           | Flight data analytics project built with dbt and PostgreSQL, from raw ingestion to marts with testing and documentation.                                               |
 | 2   | [churn_analysis](./churn_analysis)                     | Study of customer churn patterns and the factors influencing retention.     |
 | 3   | [claims_trends](./claims_trends)                       | Examination of claims trends over time to identify patterns and anomalies. |
 | 4   | [errors_in_data](./errors_in_data)                     | Identification and investigation of errors and inconsistencies in trading datasets. |
