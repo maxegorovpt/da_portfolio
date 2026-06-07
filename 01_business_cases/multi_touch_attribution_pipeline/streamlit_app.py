@@ -2,8 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 from pathlib import Path
 
+pio.templates.default = "plotly"
 
 st.set_page_config(
     page_title="Marketing Attribution Dashboard",
@@ -14,16 +16,6 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    .metric-card {
-        background: #f8f9fa;
-        border-radius: 12px;
-        padding: 20px;
-        border-left: 4px solid;
-    }
-    .metric-card.blue  { border-color: #4285F4; }
-    .metric-card.green { border-color: #34A853; }
-    .metric-card.orange{ border-color: #FF6D00; }
-    .metric-card.red   { border-color: #EA4335; }
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] { border-radius: 8px 8px 0 0; }
     h1 { font-size: 1.8rem !important; }
@@ -42,15 +34,16 @@ CHANNEL_COLORS = {
     "google_ads": "#4285F4",
     "meta_ads": "#1877F2",
     "linkedin_ads": "#0A66C2",
-    "paid_search": "#4285F4",
-    "paid_social": "#1877F2",
+    "paid_search": "#5B8FF9",
+    "paid_social": "#5AD8A6",
     "email": "#34A853",
     "organic_search": "#FF6D00",
     "direct_traffic": "#9E9E9E",
+    "referrals": "#7E57C2",
+    "offline_sources": "#8D6E63",
 }
 
 BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
 
 
 def safe_read_csv(path):
@@ -67,6 +60,30 @@ def safe_read_csv(path):
     return df
 
 
+def normalize_channel_value(series):
+    return (
+        series.astype(str)
+        .str.strip()
+        .str.lower()
+        .replace({
+            "google": "google_ads",
+            "google ads": "google_ads",
+            "meta": "meta_ads",
+            "facebook": "meta_ads",
+            "facebook_ads": "meta_ads",
+            "linkedin": "linkedin_ads",
+            "linkedin ads": "linkedin_ads",
+            "social media": "paid_social",
+            "social": "paid_social",
+            "paid social": "paid_social",
+            "paid search": "paid_search",
+            "organic search": "organic_search",
+            "direct traffic": "direct_traffic",
+            "(not set)": "direct_traffic",
+        })
+    )
+
+
 @st.cache_data
 def load_all_data():
     google = safe_read_csv(BASE_DIR / "seeds" / "raw_google_ads" / "ad_performance_report.csv")
@@ -79,18 +96,33 @@ def load_all_data():
             google = google.rename(columns={"date": "date_day"})
         if "cost_micros" in google.columns:
             google["spend_usd"] = pd.to_numeric(google["cost_micros"], errors="coerce").fillna(0) / 1_000_000
+        if "campaign_name" not in google.columns:
+            for c in ["campaign", "campaignname", "campaign_name"]:
+                if c in google.columns:
+                    google = google.rename(columns={c: "campaign_name"})
+                    break
 
     if not meta.empty:
         if "date_start" in meta.columns:
             meta = meta.rename(columns={"date_start": "date_day"})
         if "spend" in meta.columns:
             meta["spend_usd"] = pd.to_numeric(meta["spend"], errors="coerce").fillna(0)
+        if "campaign_name" not in meta.columns:
+            for c in ["campaign_name", "campaign", "campaignname"]:
+                if c in meta.columns:
+                    meta = meta.rename(columns={c: "campaign_name"})
+                    break
 
     if not linkedin.empty:
         if "day" in linkedin.columns:
             linkedin = linkedin.rename(columns={"day": "date_day"})
         if "cost_in_usd" in linkedin.columns:
             linkedin["spend_usd"] = pd.to_numeric(linkedin["cost_in_usd"], errors="coerce").fillna(0)
+        if "campaign_name" not in linkedin.columns:
+            for c in ["campaign_name", "campaign", "campaign_group_name"]:
+                if c in linkedin.columns:
+                    linkedin = linkedin.rename(columns={c: "campaign_name"})
+                    break
 
     return {
         "google_ads": google,
@@ -98,6 +130,7 @@ def load_all_data():
         "linkedin_ads": linkedin,
         "hubspot": hubspot,
     }
+
 
 def normalize_channel_frames(frames):
     normalized = []
@@ -110,6 +143,8 @@ def normalize_channel_frames(frames):
 
         if "channel" not in df.columns:
             df["channel"] = channel_name
+
+        df["channel"] = normalize_channel_value(df["channel"])
 
         if "date_day" not in df.columns:
             continue
@@ -153,7 +188,7 @@ def prepare_hubspot(hubspot):
     if hubspot.empty:
         return pd.DataFrame(columns=[
             "contact_id", "first_touch_channel", "lifecycle_stage",
-            "is_customer", "days_lead_to_close"
+            "is_customer", "days_lead_to_close", "createdate_dt", "customer_date_dt"
         ])
 
     hubspot.columns = (
@@ -172,7 +207,7 @@ def prepare_hubspot(hubspot):
         hubspot["lifecycle_stage"] = "lead"
 
     if "hs_latest_source" in hubspot.columns:
-        hubspot["first_touch_channel"] = hubspot["hs_latest_source"].astype(str).str.strip().str.lower()
+        hubspot["first_touch_channel"] = normalize_channel_value(hubspot["hs_latest_source"])
     elif "first_touch_channel" not in hubspot.columns:
         hubspot["first_touch_channel"] = "direct_traffic"
 
@@ -182,7 +217,7 @@ def prepare_hubspot(hubspot):
         hubspot["createdate_dt"] = pd.to_datetime(
             pd.to_numeric(hubspot["createdate"], errors="coerce"),
             unit="ms",
-            errors="coerce"
+            errors="coerce",
         )
     else:
         hubspot["createdate_dt"] = pd.NaT
@@ -191,7 +226,7 @@ def prepare_hubspot(hubspot):
         hubspot["customer_date_dt"] = pd.to_datetime(
             pd.to_numeric(hubspot["hs_lifecyclestage_customer_date"], errors="coerce"),
             unit="ms",
-            errors="coerce"
+            errors="coerce",
         )
     else:
         hubspot["customer_date_dt"] = pd.NaT
@@ -205,7 +240,9 @@ def prepare_hubspot(hubspot):
         "first_touch_channel",
         "lifecycle_stage",
         "is_customer",
-        "days_lead_to_close"
+        "days_lead_to_close",
+        "createdate_dt",
+        "customer_date_dt",
     ]]
 
 
@@ -215,8 +252,6 @@ def compute_attribution(google, meta, linkedin, hubspot):
         ("meta_ads", meta),
         ("linkedin_ads", linkedin),
     ])
-
-    hubspot = prepare_hubspot(hubspot)
 
     if touches.empty:
         attr = pd.DataFrame(columns=[
@@ -246,7 +281,14 @@ hubspot = prepare_hubspot(data["hubspot"])
 touches, attr = compute_attribution(google, meta, linkedin, hubspot)
 
 if touches.empty:
-    st.error("No marketing CSV files found in ./data/. Add google_ads.csv, meta_ads.csv, linkedin_ads.csv, and optionally hubspot_contacts.csv.")
+    st.error("No valid marketing CSV data found in ./seeds/raw_*/.")
+    st.stop()
+
+touches["channel"] = normalize_channel_value(touches["channel"])
+hubspot["first_touch_channel"] = normalize_channel_value(hubspot["first_touch_channel"])
+
+if touches["date_day"].dropna().empty:
+    st.error("No valid dates found in marketing source files.")
     st.stop()
 
 with st.sidebar:
@@ -288,18 +330,26 @@ t_filt = touches[
     (touches["channel"].isin(selected_channels)) &
     (touches["date_day"] >= pd.Timestamp(start_date)) &
     (touches["date_day"] <= pd.Timestamp(end_date))
-]
+].copy()
 
-a_filt = attr[attr["channel"].isin(selected_channels)]
+a_filt = attr[attr["channel"].isin(selected_channels)].copy()
+
+hubspot_period = hubspot[
+    (hubspot["is_customer"] == 1) &
+    (hubspot["customer_date_dt"].notna()) &
+    (hubspot["customer_date_dt"] >= pd.Timestamp(start_date)) &
+    (hubspot["customer_date_dt"] <= pd.Timestamp(end_date))
+].copy()
 
 total_spend = t_filt["spend_usd"].sum()
 total_clicks = t_filt["clicks"].sum()
 total_impressions = t_filt["impressions"].sum()
 total_conversions = t_filt["conversions"].sum()
 blended_ctr = total_clicks / total_impressions if total_impressions else 0
-total_contacts = hubspot["is_customer"].sum()
-cac = total_spend / total_contacts if total_contacts else 0
-roas = (total_conversions * 85) / total_spend if total_spend else 0
+
+total_customers = int(hubspot_period["is_customer"].sum())
+cac = total_spend / total_customers if total_customers > 0 else None
+roas = (total_customers * 85) / total_spend if total_spend > 0 else 0
 
 st.title("📊 Multi-Touch Attribution Dashboard")
 st.caption(
@@ -311,7 +361,7 @@ k1.metric("Total spend", f"${total_spend:,.0f}")
 k2.metric("Impressions", f"{total_impressions:,.0f}")
 k3.metric("Clicks", f"{total_clicks:,.0f}", f"CTR {blended_ctr:.2%}")
 k4.metric("Blended ROAS", f"{roas:.2f}x")
-k5.metric("CAC", f"${cac:,.0f}", f"{int(total_contacts)} customers")
+k5.metric("CAC", f"${cac:,.0f}" if cac is not None else "n/a", f"{total_customers} customers")
 
 st.divider()
 
@@ -327,25 +377,32 @@ with tab1:
 
     with col_a:
         st.markdown('<p class="section-header">Daily spend by channel</p>', unsafe_allow_html=True)
-        daily = t_filt.groupby(["date_day", "channel"])["spend_usd"].sum().reset_index()
+        daily = t_filt.groupby(["date_day", "channel"], as_index=False)["spend_usd"].sum()
         fig = px.area(
-            daily, x="date_day", y="spend_usd", color="channel",
+            daily,
+            x="date_day",
+            y="spend_usd",
+            color="channel",
             color_discrete_map=CHANNEL_COLORS,
             labels={"spend_usd": "Spend (USD)", "date_day": ""},
         )
-        fig.update_layout(legend_title="", margin=dict(t=10, b=10), height=300, hovermode="x unified")
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(legend_title="", margin=dict(t=10, b=10), height=300, hovermode="x unified", template="plotly")
+        st.plotly_chart(fig, use_container_width=True, theme=None)
 
     with col_b:
         st.markdown('<p class="section-header">Spend share by channel</p>', unsafe_allow_html=True)
-        spend_by_ch = t_filt.groupby("channel")["spend_usd"].sum().reset_index()
+        spend_by_ch = t_filt.groupby("channel", as_index=False)["spend_usd"].sum()
         fig2 = px.pie(
-            spend_by_ch, values="spend_usd", names="channel",
-            color="channel", color_discrete_map=CHANNEL_COLORS, hole=0.55,
+            spend_by_ch,
+            values="spend_usd",
+            names="channel",
+            color="channel",
+            color_discrete_map=CHANNEL_COLORS,
+            hole=0.55,
         )
         fig2.update_traces(textposition="outside", textinfo="percent+label")
-        fig2.update_layout(showlegend=False, margin=dict(t=10, b=10), height=300)
-        st.plotly_chart(fig2, use_container_width=True)
+        fig2.update_layout(showlegend=False, margin=dict(t=10, b=10), height=300, template="plotly")
+        st.plotly_chart(fig2, use_container_width=True, theme=None)
 
     st.markdown('<p class="section-header">Campaign performance table</p>', unsafe_allow_html=True)
     camp_table = (
@@ -381,12 +438,15 @@ with tab2:
         attr_by_ch["attributed_revenue"] = attr_by_ch["attributed_conversions"] * 85
         fig3 = px.bar(
             attr_by_ch.sort_values("attributed_revenue", ascending=True),
-            x="attributed_revenue", y="channel", orientation="h",
-            color="channel", color_discrete_map=CHANNEL_COLORS,
+            x="attributed_revenue",
+            y="channel",
+            orientation="h",
+            color="channel",
+            color_discrete_map=CHANNEL_COLORS,
             labels={"attributed_revenue": "Attributed revenue (USD)", "channel": ""},
         )
-        fig3.update_layout(showlegend=False, margin=dict(t=10, b=10), height=300)
-        st.plotly_chart(fig3, use_container_width=True)
+        fig3.update_layout(showlegend=False, margin=dict(t=10, b=10), height=300, template="plotly")
+        st.plotly_chart(fig3, use_container_width=True, theme=None)
 
     with col_d:
         st.markdown('<p class="section-header">Attribution model comparison</p>', unsafe_allow_html=True)
@@ -403,13 +463,16 @@ with tab2:
         model_labels = {"first": "First-touch", "last": "Last-touch", "linear": "Linear"}
         comp_melt["model"] = comp_melt["model"].map(model_labels)
         fig4 = px.bar(
-            comp_melt, x="channel", y="conversions", color="model",
+            comp_melt,
+            x="channel",
+            y="conversions",
+            color="model",
             barmode="group",
             color_discrete_sequence=["#4285F4", "#EA4335", "#34A853"],
             labels={"conversions": "Attributed conversions", "channel": ""},
         )
-        fig4.update_layout(legend_title="Model", margin=dict(t=10, b=10), height=300)
-        st.plotly_chart(fig4, use_container_width=True)
+        fig4.update_layout(legend_title="Model", margin=dict(t=10, b=10), height=300, template="plotly")
+        st.plotly_chart(fig4, use_container_width=True, theme=None)
 
     st.markdown('<p class="section-header">Attribution delta: first-touch vs last-touch</p>', unsafe_allow_html=True)
     st.caption("Channels above 0 are over-credited by last-touch vs first-touch. Channels below 0 drive awareness but lose credit at last-touch.")
@@ -418,7 +481,8 @@ with tab2:
     delta = delta.sort_values("delta")
     colors = ["#EA4335" if v < 0 else "#34A853" for v in delta["delta"]]
     fig5 = go.Figure(go.Bar(
-        x=delta["channel"], y=delta["delta"],
+        x=delta["channel"],
+        y=delta["delta"],
         marker_color=colors,
         text=delta["delta"].map("{:+.1f}".format),
         textposition="outside",
@@ -429,8 +493,9 @@ with tab2:
         margin=dict(t=10, b=10),
         height=280,
         showlegend=False,
+        template="plotly",
     )
-    st.plotly_chart(fig5, use_container_width=True)
+    st.plotly_chart(fig5, use_container_width=True, theme=None)
 
 with tab3:
     col_e, col_f = st.columns(2)
@@ -460,11 +525,11 @@ with tab3:
             marker_color=["#4285F4", "#5B97F5", "#7DADF5", "#9DC3F5", "#BDD9F5", "#34A853"],
             textinfo="value+percent initial",
         ))
-        fig6.update_layout(margin=dict(t=10, b=10), height=350)
-        st.plotly_chart(fig6, use_container_width=True)
+        fig6.update_layout(margin=dict(t=10, b=10), height=350, template="plotly")
+        st.plotly_chart(fig6, use_container_width=True, theme=None)
 
     with col_f:
-        st.markdown('<p class="section-header">First-touch channel → customer conversion</p>', unsafe_allow_html=True)
+        st.markdown('<p class="section-header">Source → customer conversion</p>', unsafe_allow_html=True)
         ch_conv = (
             hubspot.groupby("first_touch_channel")
             .agg(total=("contact_id", "count"), customers=("is_customer", "sum"))
@@ -473,7 +538,9 @@ with tab3:
         ch_conv["conv_rate"] = ch_conv["customers"] / ch_conv["total"].replace(0, 1)
         ch_conv = ch_conv.sort_values("conv_rate", ascending=True)
         fig7 = px.bar(
-            ch_conv, x="conv_rate", y="first_touch_channel",
+            ch_conv,
+            x="conv_rate",
+            y="first_touch_channel",
             orientation="h",
             color="first_touch_channel",
             color_discrete_map=CHANNEL_COLORS,
@@ -481,10 +548,10 @@ with tab3:
             labels={"conv_rate": "Lead → Customer rate", "first_touch_channel": ""},
         )
         fig7.update_traces(textposition="outside")
-        fig7.update_layout(showlegend=False, margin=dict(t=10, b=10), height=350)
-        st.plotly_chart(fig7, use_container_width=True)
+        fig7.update_layout(showlegend=False, margin=dict(t=10, b=10), height=350, template="plotly")
+        st.plotly_chart(fig7, use_container_width=True, theme=None)
 
-    st.markdown('<p class="section-header">Days to close by first-touch channel</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-header">Days to close by source</p>', unsafe_allow_html=True)
     days_close = (
         hubspot[hubspot["days_lead_to_close"].notna()]
         .groupby("first_touch_channel")["days_lead_to_close"]
@@ -493,14 +560,17 @@ with tab3:
         .sort_values("days_lead_to_close")
     )
     fig8 = px.bar(
-        days_close, x="first_touch_channel", y="days_lead_to_close",
-        color="first_touch_channel", color_discrete_map=CHANNEL_COLORS,
+        days_close,
+        x="first_touch_channel",
+        y="days_lead_to_close",
+        color="first_touch_channel",
+        color_discrete_map=CHANNEL_COLORS,
         labels={"days_lead_to_close": "Avg days to close", "first_touch_channel": ""},
         text=days_close["days_lead_to_close"].map("{:.0f}d".format),
     )
     fig8.update_traces(textposition="outside")
-    fig8.update_layout(showlegend=False, margin=dict(t=10, b=10), height=280)
-    st.plotly_chart(fig8, use_container_width=True)
+    fig8.update_layout(showlegend=False, margin=dict(t=10, b=10), height=280, template="plotly")
+    st.plotly_chart(fig8, use_container_width=True, theme=None)
 
 with tab4:
     source = st.selectbox(
