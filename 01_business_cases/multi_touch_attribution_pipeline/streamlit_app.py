@@ -56,7 +56,20 @@ DATA_DIR = BASE_DIR / "data"
 def safe_read_csv(path, date_cols=None):
     if not path.exists():
         return pd.DataFrame()
-    return pd.read_csv(path, parse_dates=date_cols or [])
+
+    df = pd.read_csv(path)
+
+    df.columns = (
+        df.columns.astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    for col in date_cols or []:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+
+    return df
 
 
 @st.cache_data
