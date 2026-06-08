@@ -57,7 +57,7 @@ def load_data(cac_path: Path, ltv_path: Path):
             if col in df.columns:
                 df[col] = df[col].replace("nan", pd.NA)
 
-    for col in ["first_purchase_date", "last_purchase_date", "campaign_start_date"]:
+    for col in ["first_purchase_date", "last_purchase_date"]:
         if col in cac.columns:
             cac[col] = pd.to_datetime(cac[col], errors="coerce")
         if col in ltv.columns:
@@ -210,7 +210,7 @@ def _monthly_series_by_dim(cac_f, ltv_f, dim, top_n=8):
     Returns a long DataFrame or None if date columns are missing.
     Limits to top_n dimensions by total revenue to keep charts readable.
     """
-    has_cac_date = "campaign_start_date" in cac_f.columns and not cac_f["campaign_start_date"].isna().all()
+    has_cac_date = "first_purchase_date" in cac_f.columns and not cac_f["first_purchase_date"].isna().all()
     has_ltv_date = "first_purchase_date" in ltv_f.columns and not ltv_f["first_purchase_date"].isna().all()
     if not has_cac_date or not has_ltv_date:
         return None
@@ -218,8 +218,8 @@ def _monthly_series_by_dim(cac_f, ltv_f, dim, top_n=8):
         return None
 
     spend_m = (
-        cac_f.dropna(subset=["campaign_start_date", dim])
-        .assign(month=lambda d: d["campaign_start_date"].dt.to_period("M").dt.to_timestamp())
+        cac_f.dropna(subset=["first_purchase_date", dim])
+        .assign(month=lambda d: d["first_purchase_date"].dt.to_period("M").dt.to_timestamp())
         .groupby(["month", dim], as_index=False)
         .agg(spend=("total_spend_usd", "sum"), new_customers=("new_customers", "sum"))
     )
@@ -254,14 +254,14 @@ def _monthly_series(cac_f, ltv_f):
     month, spend, revenue, new_customers, cac, avg_ltv, ltv_cac_ratio, roas, gross_profit
     Only returns data if both date columns exist and have ≥2 months.
     """
-    has_cac_date = "campaign_start_date" in cac_f.columns and not cac_f["campaign_start_date"].isna().all()
+    has_cac_date = "first_purchase_date" in cac_f.columns and not cac_f["first_purchase_date"].isna().all()
     has_ltv_date = "first_purchase_date" in ltv_f.columns and not ltv_f["first_purchase_date"].isna().all()
     if not has_cac_date or not has_ltv_date:
         return None
 
     spend_m = (
-        cac_f.dropna(subset=["campaign_start_date"])
-        .assign(month=lambda d: d["campaign_start_date"].dt.to_period("M").dt.to_timestamp())
+        cac_f.dropna(subset=["first_purchase_date"])
+        .assign(month=lambda d: d["first_purchase_date"].dt.to_period("M").dt.to_timestamp())
         .groupby("month", as_index=False)
         .agg(spend=("total_spend_usd", "sum"), new_customers=("new_customers", "sum"))
     )
