@@ -55,7 +55,7 @@ def load_data(cac_path: Path, ltv_path: Path):
     for df in (cac, ltv):
         for col in ["country", "platform", "ad_source", "campaign", "campaign_id"]:
             if col in df.columns:
-                df[col] = df[col].astype(str).replace("nan", "unknown").fillna("unknown")
+                df[col] = df[col].replace("nan", pd.NA)
 
     for col in ["first_purchase_date", "last_purchase_date", "campaign_start_date"]:
         if col in cac.columns:
@@ -219,6 +219,15 @@ def make_eu_map(cac_f, ltv_f):
     if eu_cac.empty or eu_ltv.empty:
         return None
 
+    iso_map = {
+        "DE": "DEU",
+        "FR": "FRA",
+        "GB": "GBR",
+        "NL": "NLD",
+        "PL": "POL",
+        "SE": "SWE",
+    }
+
     cac_ct = eu_cac.groupby("country", as_index=False).agg(
         total_spend_usd=("total_spend_usd", "sum"),
         new_customers=("new_customers", "sum"),
@@ -248,14 +257,21 @@ def make_eu_map(cac_f, ltv_f):
         "PL": "Poland",
         "SE": "Sweden",
     })
+    eu["iso3"] = eu["country"].map(iso_map)
 
     fig = px.choropleth(
         eu,
-        locations="country",
-        locationmode="ISO-3166-1-alpha-2",
+        locations="iso3",
+        locationmode="ISO-3",
         color="ltv_cac_ratio",
         hover_name="country_name",
-        hover_data={"cac_usd": ":.2f", "avg_ltv_usd": ":.2f", "ltv_cac_ratio": ":.2f", "country": False},
+        hover_data={
+            "cac_usd": ":.2f",
+            "avg_ltv_usd": ":.2f",
+            "ltv_cac_ratio": ":.2f",
+            "country": False,
+            "iso3": False,
+        },
         color_continuous_scale="Viridis",
         projection="mercator",
         title="EU LTV / CAC Ratio",
