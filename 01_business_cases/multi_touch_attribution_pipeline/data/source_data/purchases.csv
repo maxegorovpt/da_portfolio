@@ -3440,9 +3440,9 @@ user_id,purchase_date,platform,ad_source,purchase_amount,country
 100587,2025-02-26,android,facebook,40.31,BE
 100588,2025-01-16,android,facebook,5.19,FR
 100589,2025-02-23,android,google,68.84,IE
-100590,2025-01-04,ios,instagram,24.37,LT16
+100590,2025-01-04,ios,instagram,24.37,LT
 100591,2025-02-25,android,twitter,41.46,PT
-100592,2025-02-01,ios,instagram,44.23,CZFALSE
+100592,2025-02-01,ios,instagram,44.23,CZ
 100593,2025-01-29,ios,twitter,73.47,HU
 100594,2025-02-27,ios,tiktok,21.19,MT
 100595,2025-01-21,ios,instagram,23.49,IT

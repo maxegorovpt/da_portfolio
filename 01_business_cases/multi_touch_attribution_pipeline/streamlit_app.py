@@ -17,39 +17,12 @@ DATA_DIR = BASE_DIR / "data" / "calculations"
 CAC_FILE = DATA_DIR / "cac.csv"
 LTV_FILE = DATA_DIR / "ltv.csv"
 
-EU_CODES = [
-    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR",
-    "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL",
-    "PL", "PT", "RO", "SK", "SI", "ES", "SE",
-]
-
-EU_ISO3 = {
-    "AT": "AUT", "BE": "BEL", "BG": "BGR", "HR": "HRV", "CY": "CYP",
-    "CZ": "CZE", "DK": "DNK", "EE": "EST", "FI": "FIN", "FR": "FRA",
-    "DE": "DEU", "GR": "GRC", "HU": "HUN", "IE": "IRL", "IT": "ITA",
-    "LV": "LVA", "LT": "LTU", "LU": "LUX", "MT": "MLT", "NL": "NLD",
-    "PL": "POL", "PT": "PRT", "RO": "ROU", "SK": "SVK", "SI": "SVN",
-    "ES": "ESP", "SE": "SWE",
-}
-
-EU_NAMES = {
-    "AT": "Austria", "BE": "Belgium", "BG": "Bulgaria", "HR": "Croatia", "CY": "Cyprus",
-    "CZ": "Czechia", "DK": "Denmark", "EE": "Estonia", "FI": "Finland", "FR": "France",
-    "DE": "Germany", "GR": "Greece", "HU": "Hungary", "IE": "Ireland", "IT": "Italy",
-    "LV": "Latvia", "LT": "Lithuania", "LU": "Luxembourg", "MT": "Malta", "NL": "Netherlands",
-    "PL": "Poland", "PT": "Portugal", "RO": "Romania", "SK": "Slovakia", "SI": "Slovenia",
-    "ES": "Spain", "SE": "Sweden",
-}
-
 
 def inject_css():
     st.markdown(
         """
         <style>
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1.5rem;
-        }
+        .block-container { padding-top: 1rem; padding-bottom: 1.5rem; }
         [data-testid="stMetric"] {
             background: linear-gradient(180deg, rgba(15,23,42,0.92), rgba(30,41,59,0.88));
             border: 1px solid rgba(148,163,184,0.22);
@@ -59,12 +32,8 @@ def inject_css():
         }
         [data-testid="stMetricLabel"] { color: rgba(226,232,240,0.82); }
         [data-testid="stMetricValue"] { color: #f8fafc; font-weight: 700; }
-        .small-note {
-            color: #94a3b8;
-            font-size: 0.9rem;
-            margin-top: -0.15rem;
-            margin-bottom: 0.6rem;
-        }
+        .small-note { color: #94a3b8; font-size: 0.9rem; margin-top: -0.15rem; margin-bottom: 0.6rem; }
+        .section-divider { border: none; border-top: 1px solid rgba(148,163,184,0.2); margin: 1.5rem 0; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -120,6 +89,17 @@ def apply_filters(cac, ltv, countries, platforms, sources):
     return cac_f, ltv_f
 
 
+def fmt_short(x, prefix="$"):
+    """Format large numbers in compact form: $1.2M, $340K, etc."""
+    if pd.isna(x):
+        return "—"
+    if abs(x) >= 1_000_000:
+        return f"{prefix}{x/1_000_000:.1f}M"
+    if abs(x) >= 1_000:
+        return f"{prefix}{x/1_000:.1f}K"
+    return f"{prefix}{x:.2f}"
+
+
 def fmt_money(x):
     return "—" if pd.isna(x) else f"${x:,.2f}"
 
@@ -128,34 +108,32 @@ def fmt_num(x):
     return "—" if pd.isna(x) else f"{x:,.0f}"
 
 
+def fmt_num_short(x):
+    if pd.isna(x):
+        return "—"
+    if abs(x) >= 1_000_000:
+        return f"{x/1_000_000:.1f}M"
+    if abs(x) >= 1_000:
+        return f"{x/1_000:.1f}K"
+    return f"{x:,.0f}"
+
+
 def safe_div(a, b):
     return np.nan if pd.isna(b) or b == 0 else a / b
 
 
 def build_kpis(cac_f, ltv_f):
-    """
-    Fixed KPI calculations:
-    - CAC = Total Spend / New Customers
-    - LTV = Total Revenue / Total Unique Users (not mean of ltv_usd column)
-    """
     total_spend = cac_f["total_spend_usd"].sum()
     total_revenue = ltv_f["total_revenue"].sum()
     total_customers = cac_f["new_customers"].sum()
-
-    # CAC = Total Spend / New Customers
     overall_cac = safe_div(total_spend, total_customers)
-
-    # LTV = Total Revenue / Total Unique Users
-    total_users = ltv_f["user_id"].nunique()
-
-    # If no user_id column, use total_customers as the denominator
+    total_users = ltv_f["user_id"].nunique() if "user_id" in ltv_f.columns else 0
     if total_users == 0:
         total_users = total_customers
-
     avg_ltv = safe_div(total_revenue, total_users)
-
-    # LTV:CAC Ratio
     ltv_cac_ratio = safe_div(avg_ltv, overall_cac)
+    gross_profit = total_revenue - total_spend
+    roas = safe_div(total_revenue, total_spend)
 
     return {
         "total_spend": total_spend,
@@ -164,6 +142,8 @@ def build_kpis(cac_f, ltv_f):
         "overall_cac": overall_cac,
         "avg_ltv": avg_ltv,
         "ltv_cac_ratio": ltv_cac_ratio,
+        "gross_profit": gross_profit,
+        "roas": roas,
     }
 
 
@@ -182,7 +162,6 @@ def aggregate_dim(cac_f, ltv_f, dim):
         cac_agg["total_spend_usd"] / cac_agg["new_customers"],
         np.nan,
     )
-
     ltv_agg = (
         ltv_f.groupby(dim, as_index=False)
         .agg(
@@ -191,152 +170,38 @@ def aggregate_dim(cac_f, ltv_f, dim):
             users=("user_id", "nunique"),
         )
     )
-
     merged = cac_agg.merge(ltv_agg, on=dim, how="outer")
-    for col in ["total_spend_usd", "new_customers", "total_revenue", "purchase_count", "users", "cac_usd", "avg_ltv_usd"]:
+    for col in ["total_spend_usd", "new_customers", "total_revenue", "purchase_count", "users"]:
         if col in merged.columns:
-            merged[col] = pd.to_numeric(merged[col], errors="coerce")
-    merged[["total_spend_usd", "new_customers", "total_revenue", "purchase_count", "users"]] = merged[["total_spend_usd", "new_customers", "total_revenue", "purchase_count", "users"]].fillna(0)
-
-    # Calculate avg_ltv_usd per dimension: Revenue / Users
+            merged[col] = pd.to_numeric(merged[col], errors="coerce").fillna(0)
     merged["avg_ltv_usd"] = np.where(
         merged["users"] > 0,
         merged["total_revenue"] / merged["users"],
         np.nan,
     )
-
     merged["ltv_cac_ratio"] = np.where(
         merged["cac_usd"] > 0,
         merged["avg_ltv_usd"] / merged["cac_usd"],
         np.nan,
     )
     merged["profit_gap"] = merged["avg_ltv_usd"] - merged["cac_usd"]
+    merged["roas"] = np.where(
+        merged["total_spend_usd"] > 0,
+        merged["total_revenue"] / merged["total_spend_usd"],
+        np.nan,
+    )
     return merged.sort_values("total_revenue", ascending=False)
 
 
+CHART_TEMPLATE = "plotly_white"
+CHART_MARGIN = dict(l=10, r=10, t=60, b=10)
+
+
 def make_bar(df, x, y, title, color=None, text_auto=".2s"):
-    fig = px.bar(
-        df,
-        x=x,
-        y=y,
-        color=color,
-        text_auto=text_auto,
-        title=title,
-        template="plotly_white",
-    )
+    fig = px.bar(df, x=x, y=y, color=color, text_auto=text_auto,
+                 title=title, template=CHART_TEMPLATE)
     fig.update_traces(marker_line_width=0, hovertemplate="<b>%{x}</b><br>%{y:$,.2f}<extra></extra>")
-    fig.update_layout(
-        height=430,
-        margin=dict(l=10, r=10, t=60, b=10),
-        title_font=dict(size=18),
-        legend_title_text="",
-    )
-    return fig
-
-
-def make_scatter(df, dim):
-    fig = px.scatter(
-        df,
-        x="cac_usd",
-        y="avg_ltv_usd",
-        size="total_revenue",
-        color="ltv_cac_ratio",
-        hover_name=dim,
-        color_continuous_scale="Tealgrn",
-        template="plotly_white",
-        title=f"LTV vs CAC by {dim.replace('_', ' ').title()}",
-        labels={"cac_usd": "CAC ($)", "avg_ltv_usd": "Avg LTV ($)", "ltv_cac_ratio": "LTV/CAC"},
-    )
-    max_axis = np.nanmax([
-        df["cac_usd"].max() if not df.empty else 0,
-        df["avg_ltv_usd"].max() if not df.empty else 0,
-    ])
-    if pd.notna(max_axis) and max_axis > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=[0, max_axis],
-                y=[0, max_axis],
-                mode="lines",
-                name="LTV = CAC",
-                line=dict(color="#64748b", dash="dash"),
-            )
-        )
-    fig.update_layout(
-        height=450,
-        margin=dict(l=10, r=10, t=60, b=10),
-        title_font=dict(size=18),
-        coloraxis_colorbar=dict(title="LTV/CAC"),
-    )
-    return fig
-
-
-def make_eu_map(cac_f, ltv_f):
-    eu_cac = cac_f[cac_f["country"].isin(EU_CODES)]
-    eu_ltv = ltv_f[ltv_f["country"].isin(EU_CODES)]
-    if eu_cac.empty or eu_ltv.empty:
-        return None
-
-    cac_ct = eu_cac.groupby("country", as_index=False).agg(
-        total_spend_usd=("total_spend_usd", "sum"),
-        new_customers=("new_customers", "sum"),
-    )
-    cac_ct["cac_usd"] = np.where(
-        cac_ct["new_customers"] > 0,
-        cac_ct["total_spend_usd"] / cac_ct["new_customers"],
-        np.nan,
-    )
-
-    ltv_ct = eu_ltv.groupby("country", as_index=False).agg(
-        total_revenue=("total_revenue", "sum"),
-        users=("user_id", "nunique"),
-    )
-
-    # Calculate LTV per country
-    ltv_ct["avg_ltv_usd"] = np.where(
-        ltv_ct["users"] > 0,
-        ltv_ct["total_revenue"] / ltv_ct["users"],
-        np.nan,
-    )
-
-    eu = cac_ct.merge(ltv_ct, on="country", how="inner")
-    eu["ltv_cac_ratio"] = np.where(
-        eu["cac_usd"] > 0,
-        eu["avg_ltv_usd"] / eu["cac_usd"],
-        np.nan,
-    )
-    eu["country_name"] = eu["country"].map(EU_NAMES)
-    eu["iso3"] = eu["country"].map(EU_ISO3)
-
-    fig = px.choropleth(
-        eu,
-        locations="iso3",
-        locationmode="ISO-3",
-        color="ltv_cac_ratio",
-        hover_name="country_name",
-        hover_data={
-            "cac_usd": ":.2f",
-            "avg_ltv_usd": ":.2f",
-            "ltv_cac_ratio": ":.2f",
-            "country": False,
-            "iso3": False,
-        },
-        color_continuous_scale="Viridis",
-        projection="mercator",
-        title="EU LTV / CAC Ratio",
-    )
-    fig.update_geos(
-        fitbounds="locations",
-        visible=False,
-        showcoastlines=False,
-        showland=True,
-        landcolor="rgba(15,23,42,0.03)",
-    )
-    fig.update_layout(
-        height=520,
-        margin=dict(l=0, r=0, t=60, b=0),
-        title_font=dict(size=18),
-        coloraxis_colorbar=dict(title="LTV/CAC"),
-    )
+    fig.update_layout(height=430, margin=CHART_MARGIN, title_font=dict(size=18), legend_title_text="")
     return fig
 
 
@@ -345,17 +210,196 @@ def make_cost_revenue_chart(cac_f, ltv_f):
     rev = ltv_f.groupby("country", as_index=False).agg(revenue=("total_revenue", "sum"))
     merged = spend.merge(rev, on="country", how="outer").fillna(0)
     order = merged.sort_values("revenue", ascending=False)["country"]
-
     fig = go.Figure()
     fig.add_bar(x=merged["country"], y=merged["cost"], name="Cost", marker_color="#0f766e")
     fig.add_bar(x=merged["country"], y=merged["revenue"], name="Revenue", marker_color="#7c3aed")
     fig.update_layout(
-        barmode="group",
-        template="plotly_white",
-        title="Costs and Revenue by Country",
-        height=480,
-        margin=dict(l=10, r=10, t=60, b=10),
+        barmode="group", template=CHART_TEMPLATE,
+        title="Cost vs Revenue by Country", height=480,
+        margin=CHART_MARGIN,
         xaxis=dict(categoryorder="array", categoryarray=list(order)),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        title_font=dict(size=18),
+    )
+    fig.update_yaxes(tickprefix="$", separatethousands=True)
+    return fig
+
+
+def make_roas_chart(breakdown, dim):
+    df = breakdown.dropna(subset=["roas"]).sort_values("roas", ascending=False).head(15)
+    colors = ["#22c55e" if v >= 3 else "#f59e0b" if v >= 1 else "#ef4444" for v in df["roas"]]
+    fig = go.Figure(go.Bar(
+        x=df[dim], y=df["roas"],
+        marker_color=colors,
+        text=df["roas"].round(2),
+        textposition="outside",
+        hovertemplate="<b>%{x}</b><br>ROAS: %{y:.2f}x<extra></extra>",
+    ))
+    fig.add_hline(y=1, line_dash="dash", line_color="#ef4444", annotation_text="Break-even (1x)")
+    fig.add_hline(y=3, line_dash="dot", line_color="#22c55e", annotation_text="Healthy (3x)")
+    fig.update_layout(
+        title=f"ROAS by {dim.replace('_', ' ').title()}",
+        template=CHART_TEMPLATE, height=430,
+        margin=CHART_MARGIN, title_font=dict(size=18),
+        yaxis_title="ROAS (Revenue / Spend)",
+    )
+    return fig
+
+
+def make_profit_gap_chart(breakdown, dim):
+    df = breakdown.dropna(subset=["profit_gap"]).sort_values("profit_gap", ascending=False).head(15)
+    colors = ["#22c55e" if v > 0 else "#ef4444" for v in df["profit_gap"]]
+    fig = go.Figure(go.Bar(
+        x=df[dim], y=df["profit_gap"],
+        marker_color=colors,
+        text=df["profit_gap"].round(2),
+        texttemplate="$%{text}",
+        textposition="outside",
+        hovertemplate="<b>%{x}</b><br>LTV - CAC: $%{y:.2f}<extra></extra>",
+    ))
+    fig.add_hline(y=0, line_dash="dash", line_color="#64748b", annotation_text="Break-even")
+    fig.update_layout(
+        title=f"Profit Gap (LTV − CAC) by {dim.replace('_', ' ').title()}",
+        template=CHART_TEMPLATE, height=430,
+        margin=CHART_MARGIN, title_font=dict(size=18),
+        yaxis_title="LTV − CAC ($)",
+    )
+    return fig
+
+
+def make_ltv_cac_ratio_chart(breakdown, dim):
+    df = breakdown.dropna(subset=["ltv_cac_ratio"]).sort_values("ltv_cac_ratio", ascending=False).head(15)
+    colors = ["#22c55e" if v >= 3 else "#f59e0b" if v >= 1 else "#ef4444" for v in df["ltv_cac_ratio"]]
+    fig = go.Figure(go.Bar(
+        x=df[dim], y=df["ltv_cac_ratio"],
+        marker_color=colors,
+        text=df["ltv_cac_ratio"].round(2),
+        texttemplate="%{text}x",
+        textposition="outside",
+        hovertemplate="<b>%{x}</b><br>LTV:CAC %{y:.2f}x<extra></extra>",
+    ))
+    fig.add_hline(y=1, line_dash="dash", line_color="#ef4444", annotation_text="1x")
+    fig.add_hline(y=3, line_dash="dot", line_color="#22c55e", annotation_text="Target 3x")
+    fig.update_layout(
+        title=f"LTV:CAC Ratio by {dim.replace('_', ' ').title()}",
+        template=CHART_TEMPLATE, height=430,
+        margin=CHART_MARGIN, title_font=dict(size=18),
+        yaxis_title="LTV:CAC Ratio",
+    )
+    return fig
+
+
+def make_spend_revenue_trend(cac_f, ltv_f):
+    """Monthly spend vs revenue trend if date columns exist."""
+    if "campaign_start_date" not in cac_f.columns or cac_f["campaign_start_date"].isna().all():
+        return None
+    if "first_purchase_date" not in ltv_f.columns or ltv_f["first_purchase_date"].isna().all():
+        return None
+
+    spend_monthly = (
+        cac_f.dropna(subset=["campaign_start_date"])
+        .assign(month=lambda d: d["campaign_start_date"].dt.to_period("M").dt.to_timestamp())
+        .groupby("month", as_index=False)
+        .agg(spend=("total_spend_usd", "sum"))
+    )
+    rev_monthly = (
+        ltv_f.dropna(subset=["first_purchase_date"])
+        .assign(month=lambda d: d["first_purchase_date"].dt.to_period("M").dt.to_timestamp())
+        .groupby("month", as_index=False)
+        .agg(revenue=("total_revenue", "sum"))
+    )
+    merged = spend_monthly.merge(rev_monthly, on="month", how="outer").fillna(0).sort_values("month")
+    if len(merged) < 2:
+        return None
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=merged["month"], y=merged["spend"], name="Spend",
+                             fill="tozeroy", mode="lines+markers",
+                             line=dict(color="#0f766e", width=2), fillcolor="rgba(15,118,110,0.15)"))
+    fig.add_trace(go.Scatter(x=merged["month"], y=merged["revenue"], name="Revenue",
+                             fill="tozeroy", mode="lines+markers",
+                             line=dict(color="#7c3aed", width=2), fillcolor="rgba(124,58,237,0.15)"))
+    fig.update_layout(
+        title="Monthly Spend vs Revenue Trend",
+        template=CHART_TEMPLATE, height=420,
+        margin=CHART_MARGIN, title_font=dict(size=18),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        yaxis=dict(tickprefix="$", separatethousands=True),
+    )
+    return fig
+
+
+def make_customers_revenue_scatter(breakdown, dim):
+    """Bubble chart: new customers vs revenue, sized by spend."""
+    df = breakdown.dropna(subset=["new_customers", "total_revenue"]).copy()
+    if df.empty:
+        return None
+    fig = px.scatter(
+        df, x="new_customers", y="total_revenue",
+        size="total_spend_usd", color="ltv_cac_ratio",
+        hover_name=dim,
+        color_continuous_scale="RdYlGn",
+        template=CHART_TEMPLATE,
+        title=f"Customers vs Revenue by {dim.replace('_', ' ').title()} (bubble = spend)",
+        labels={
+            "new_customers": "New Customers",
+            "total_revenue": "Total Revenue ($)",
+            "ltv_cac_ratio": "LTV:CAC",
+        },
+    )
+    fig.update_layout(
+        height=450, margin=CHART_MARGIN, title_font=dict(size=18),
+        coloraxis_colorbar=dict(title="LTV:CAC"),
+    )
+    fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>Customers: %{x:,.0f}<br>Revenue: $%{y:,.0f}<extra></extra>")
+    fig.update_yaxes(tickprefix="$", separatethousands=True)
+    return fig
+
+
+def make_platform_pie(cac_f):
+    if "platform" not in cac_f.columns:
+        return None
+    df = cac_f.groupby("platform", as_index=False).agg(spend=("total_spend_usd", "sum"))
+    df = df[df["spend"] > 0]
+    if df.empty:
+        return None
+    fig = px.pie(df, names="platform", values="spend",
+                 title="Spend Share by Platform",
+                 template=CHART_TEMPLATE,
+                 color_discrete_sequence=px.colors.qualitative.Set2)
+    fig.update_traces(textinfo="percent+label", hovertemplate="<b>%{label}</b><br>$%{value:,.0f}<br>%{percent}<extra></extra>")
+    fig.update_layout(height=400, margin=dict(l=10, r=10, t=60, b=10), title_font=dict(size=18), showlegend=False)
+    return fig
+
+
+def make_revenue_pie(ltv_f):
+    if "platform" not in ltv_f.columns:
+        return None
+    df = ltv_f.groupby("platform", as_index=False).agg(revenue=("total_revenue", "sum"))
+    df = df[df["revenue"] > 0]
+    if df.empty:
+        return None
+    fig = px.pie(df, names="platform", values="revenue",
+                 title="Revenue Share by Platform",
+                 template=CHART_TEMPLATE,
+                 color_discrete_sequence=px.colors.qualitative.Set2)
+    fig.update_traces(textinfo="percent+label", hovertemplate="<b>%{label}</b><br>$%{value:,.0f}<br>%{percent}<extra></extra>")
+    fig.update_layout(height=400, margin=dict(l=10, r=10, t=60, b=10), title_font=dict(size=18), showlegend=False)
+    return fig
+
+
+def make_cac_ltv_grouped(breakdown, dim):
+    """Side-by-side CAC vs Avg LTV bars."""
+    df = breakdown.dropna(subset=["cac_usd", "avg_ltv_usd"]).head(12)
+    if df.empty:
+        return None
+    fig = go.Figure()
+    fig.add_bar(x=df[dim], y=df["cac_usd"], name="CAC", marker_color="#f59e0b")
+    fig.add_bar(x=df[dim], y=df["avg_ltv_usd"], name="Avg LTV", marker_color="#6366f1")
+    fig.update_layout(
+        barmode="group", template=CHART_TEMPLATE,
+        title=f"CAC vs Avg LTV by {dim.replace('_', ' ').title()}",
+        height=430, margin=CHART_MARGIN,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         title_font=dict(size=18),
     )
@@ -365,11 +409,39 @@ def make_cost_revenue_chart(cac_f, ltv_f):
 
 def top_table(df, dim):
     out = df.copy()
-    for col in ["total_spend_usd", "cac_usd", "total_revenue", "avg_ltv_usd", "ltv_cac_ratio", "profit_gap"]:
+    for col in ["total_spend_usd", "cac_usd", "total_revenue", "avg_ltv_usd", "ltv_cac_ratio", "profit_gap", "roas"]:
         if col in out.columns:
             out[col] = out[col].round(2)
-    cols = [dim, "new_customers", "users", "total_spend_usd", "cac_usd", "total_revenue", "avg_ltv_usd", "ltv_cac_ratio", "profit_gap"]
+    cols = [dim, "new_customers", "users", "total_spend_usd", "cac_usd",
+            "total_revenue", "avg_ltv_usd", "ltv_cac_ratio", "profit_gap", "roas"]
     return out[[c for c in cols if c in out.columns]]
+
+
+def render_kpis(kpis):
+    m1, m2, m3, m4, m5, m6, m7, m8 = st.columns(8)
+    m1.metric("Total Spend", fmt_short(kpis["total_spend"]))
+    m2.metric("Total Revenue", fmt_short(kpis["total_revenue"]))
+    m3.metric("Gross Profit", fmt_short(kpis["gross_profit"]))
+    m4.metric("New Customers", fmt_num_short(kpis["total_customers"]))
+    m5.metric("Overall CAC", fmt_short(kpis["overall_cac"]))
+    m6.metric("Avg LTV", fmt_short(kpis["avg_ltv"]))
+    m7.metric("LTV:CAC", f"{kpis['ltv_cac_ratio']:.2f}x" if pd.notna(kpis["ltv_cac_ratio"]) else "—")
+    m8.metric("ROAS", f"{kpis['roas']:.2f}x" if pd.notna(kpis["roas"]) else "—")
+
+    status_ltv = (
+        "🟢 Healthy (≥3x)" if pd.notna(kpis["ltv_cac_ratio"]) and kpis["ltv_cac_ratio"] >= 3
+        else "🟡 Marginal (1–3x)" if pd.notna(kpis["ltv_cac_ratio"]) and kpis["ltv_cac_ratio"] >= 1
+        else "🔴 Unprofitable (<1x)"
+    )
+    status_roas = (
+        "🟢 Healthy (≥3x)" if pd.notna(kpis["roas"]) and kpis["roas"] >= 3
+        else "🟡 Marginal (1–3x)" if pd.notna(kpis["roas"]) and kpis["roas"] >= 1
+        else "🔴 Unprofitable (<1x)"
+    )
+    st.markdown(
+        f'<div class="small-note">LTV:CAC status: {status_ltv} &nbsp;|&nbsp; ROAS status: {status_roas} &nbsp;|&nbsp; A healthy LTV:CAC target is often 3:1 or better.</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def main():
@@ -378,7 +450,7 @@ def main():
     st.caption("Compare acquisition efficiency and customer value across countries, platforms, and ad sources.")
 
     if not CAC_FILE.exists() or not LTV_FILE.exists():
-        st.error(f"Missing files. Expected: {CAC_FILE} and {LTV_FILE}")
+        st.error(f"Missing files. Expected:\n- {CAC_FILE}\n- {LTV_FILE}")
         st.stop()
 
     cac, ltv = load_data(CAC_FILE, LTV_FILE)
@@ -399,72 +471,80 @@ def main():
     cac_f, ltv_f = apply_filters(cac, ltv, selected_countries, selected_platforms, selected_sources)
     kpis = build_kpis(cac_f, ltv_f)
 
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
-    m1.metric("Total Spend", fmt_money(kpis["total_spend"]))
-    m2.metric("Total Revenue", fmt_money(kpis["total_revenue"]))
-    m3.metric("New Customers", fmt_num(kpis["total_customers"]))
-    m4.metric("Overall CAC", fmt_money(kpis["overall_cac"]))
-    m5.metric("Avg LTV", fmt_money(kpis["avg_ltv"]))
-    m6.metric("LTV:CAC", f"{kpis['ltv_cac_ratio']:.2f}x" if pd.notna(kpis["ltv_cac_ratio"]) else "—")
+    # ── KPI Header ──────────────────────────────────────────────────────────────
+    render_kpis(kpis)
 
-    st.markdown(
-        '<div class="small-note">A healthy target is often around 3:1 or better, but that depends on growth stage and margin structure.</div>',
-        unsafe_allow_html=True,
-    )
+    # ── Trend chart (only shown if date data exists) ─────────────────────────
+    trend_fig = make_spend_revenue_trend(cac_f, ltv_f)
+    if trend_fig:
+        st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+        st.plotly_chart(trend_fig, use_container_width=True)
 
-    eu_map = make_eu_map(cac_f, ltv_f)
-    if eu_map is not None:
-        st.plotly_chart(eu_map, use_container_width=True)
-    else:
-        st.info("No EU data available for the current filters.")
-
+    # ── Country overview ────────────────────────────────────────────────────────
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+    st.subheader("Country Overview")
     st.plotly_chart(make_cost_revenue_chart(cac_f, ltv_f), use_container_width=True)
+
+    # ── Platform breakdown ──────────────────────────────────────────────────────
+    pie_spend = make_platform_pie(cac_f)
+    pie_rev = make_revenue_pie(ltv_f)
+    if pie_spend and pie_rev:
+        st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+        st.subheader("Platform Share")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.plotly_chart(pie_spend, use_container_width=True)
+        with col2:
+            st.plotly_chart(pie_rev, use_container_width=True)
+
+    # ── Dimension breakdown ──────────────────────────────────────────────────────
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+    st.subheader("Breakdown by Dimension")
 
     dims = {"Ad Source": "ad_source", "Platform": "platform", "Country": "country"}
     selected_dim_label = st.radio("Breakdown", list(dims.keys()), horizontal=True)
     dim = dims[selected_dim_label]
     breakdown = aggregate_dim(cac_f, ltv_f, dim)
 
+    # Row 1: Spend / Revenue
     left, right = st.columns(2)
     with left:
         st.plotly_chart(
-            make_bar(
-                breakdown.sort_values("total_spend_usd", ascending=False).head(15),
-                x=dim,
-                y="total_spend_usd",
-                title=f"Total Spend by {selected_dim_label}",
-                color=dim,
-            ),
+            make_bar(breakdown.sort_values("total_spend_usd", ascending=False).head(15),
+                     x=dim, y="total_spend_usd", title=f"Total Spend by {selected_dim_label}", color=dim),
             use_container_width=True,
         )
     with right:
         st.plotly_chart(
-            make_bar(
-                breakdown.sort_values("total_revenue", ascending=False).head(15),
-                x=dim,
-                y="total_revenue",
-                title=f"Total Revenue by {selected_dim_label}",
-                color=dim,
-            ),
+            make_bar(breakdown.sort_values("total_revenue", ascending=False).head(15),
+                     x=dim, y="total_revenue", title=f"Total Revenue by {selected_dim_label}", color=dim),
             use_container_width=True,
         )
 
+    # Row 2: CAC vs LTV grouped + ROAS
     left, right = st.columns(2)
     with left:
-        st.plotly_chart(
-            make_bar(
-                breakdown.sort_values("cac_usd", ascending=False).head(15),
-                x=dim,
-                y="cac_usd",
-                title=f"CAC by {selected_dim_label}",
-                color=dim,
-            ),
-            use_container_width=True,
-        )
+        cac_ltv_fig = make_cac_ltv_grouped(breakdown, dim)
+        if cac_ltv_fig:
+            st.plotly_chart(cac_ltv_fig, use_container_width=True)
     with right:
-        st.plotly_chart(make_scatter(breakdown, dim), use_container_width=True)
+        st.plotly_chart(make_roas_chart(breakdown, dim), use_container_width=True)
 
-    st.subheader(f"{selected_dim_label} performance table")
+    # Row 3: LTV:CAC ratio + Profit Gap
+    left, right = st.columns(2)
+    with left:
+        st.plotly_chart(make_ltv_cac_ratio_chart(breakdown, dim), use_container_width=True)
+    with right:
+        st.plotly_chart(make_profit_gap_chart(breakdown, dim), use_container_width=True)
+
+    # Row 4: Customers vs Revenue bubble
+    bubble_fig = make_customers_revenue_scatter(breakdown, dim)
+    if bubble_fig:
+        st.plotly_chart(bubble_fig, use_container_width=True)
+
+    # ── Data table + download ────────────────────────────────────────────────────
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+    st.subheader(f"{selected_dim_label} Performance Table")
     st.dataframe(top_table(breakdown, dim), use_container_width=True, hide_index=True)
 
     csv = top_table(breakdown, dim).to_csv(index=False).encode("utf-8")
@@ -473,7 +553,6 @@ def main():
         data=csv,
         file_name=f"marketing_breakdown_{dim}.csv",
         mime="text/csv",
-        use_container_width=False,
     )
 
 
