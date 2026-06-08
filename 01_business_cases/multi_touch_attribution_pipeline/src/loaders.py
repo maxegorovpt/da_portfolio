@@ -2,9 +2,9 @@ from pathlib import Path
 import pandas as pd
 
 
-def _get_series(df, col):
+def _get_series(df, col, default=pd.NA):
     if col not in df.columns:
-        return pd.Series([pd.NA] * len(df), index=df.index)
+        return pd.Series([default] * len(df), index=df.index)
     value = df[col]
     if isinstance(value, pd.DataFrame):
         value = value.iloc[:, 0]

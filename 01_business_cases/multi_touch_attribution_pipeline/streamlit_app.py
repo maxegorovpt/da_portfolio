@@ -17,6 +17,30 @@ DATA_DIR = BASE_DIR / "data" / "calculations"
 CAC_FILE = DATA_DIR / "cac.csv"
 LTV_FILE = DATA_DIR / "ltv.csv"
 
+EU_CODES = [
+    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR",
+    "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL",
+    "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+]
+
+EU_ISO3 = {
+    "AT": "AUT", "BE": "BEL", "BG": "BGR", "HR": "HRV", "CY": "CYP",
+    "CZ": "CZE", "DK": "DNK", "EE": "EST", "FI": "FIN", "FR": "FRA",
+    "DE": "DEU", "GR": "GRC", "HU": "HUN", "IE": "IRL", "IT": "ITA",
+    "LV": "LVA", "LT": "LTU", "LU": "LUX", "MT": "MLT", "NL": "NLD",
+    "PL": "POL", "PT": "PRT", "RO": "ROU", "SK": "SVK", "SI": "SVN",
+    "ES": "ESP", "SE": "SWE",
+}
+
+EU_NAMES = {
+    "AT": "Austria", "BE": "Belgium", "BG": "Bulgaria", "HR": "Croatia", "CY": "Cyprus",
+    "CZ": "Czechia", "DK": "Denmark", "EE": "Estonia", "FI": "Finland", "FR": "France",
+    "DE": "Germany", "GR": "Greece", "HU": "Hungary", "IE": "Ireland", "IT": "Italy",
+    "LV": "Latvia", "LT": "Lithuania", "LU": "Luxembourg", "MT": "Malta", "NL": "Netherlands",
+    "PL": "Poland", "PT": "Portugal", "RO": "Romania", "SK": "Slovakia", "SI": "Slovenia",
+    "ES": "Spain", "SE": "Sweden",
+}
+
 
 def inject_css():
     st.markdown(
@@ -71,6 +95,14 @@ def load_data(cac_path: Path, ltv_path: Path):
             ltv[col] = pd.to_numeric(ltv[col], errors="coerce")
 
     return cac, ltv
+
+
+def normalize_country_codes(df):
+    out = df.copy()
+    if "country" in out.columns:
+        out["country"] = out["country"].astype(str).str.strip().str.upper()
+        out["country"] = out["country"].replace({"<NA>": pd.NA, "NAN": pd.NA, "": pd.NA})
+    return out
 
 
 def apply_filters(cac, ltv, countries, platforms, sources):
@@ -214,19 +246,10 @@ def make_scatter(df, dim):
 
 
 def make_eu_map(cac_f, ltv_f):
-    eu_cac = cac_f[cac_f["country"].isin(["DE", "FR", "GB", "NL", "PL", "SE"])]
-    eu_ltv = ltv_f[ltv_f["country"].isin(["DE", "FR", "GB", "NL", "PL", "SE"])]
+    eu_cac = cac_f[cac_f["country"].isin(EU_CODES)]
+    eu_ltv = ltv_f[ltv_f["country"].isin(EU_CODES)]
     if eu_cac.empty or eu_ltv.empty:
         return None
-
-    iso_map = {
-        "DE": "DEU",
-        "FR": "FRA",
-        "GB": "GBR",
-        "NL": "NLD",
-        "PL": "POL",
-        "SE": "SWE",
-    }
 
     cac_ct = eu_cac.groupby("country", as_index=False).agg(
         total_spend_usd=("total_spend_usd", "sum"),
@@ -249,15 +272,8 @@ def make_eu_map(cac_f, ltv_f):
         eu["avg_ltv_usd"] / eu["cac_usd"],
         np.nan,
     )
-    eu["country_name"] = eu["country"].map({
-        "DE": "Germany",
-        "FR": "France",
-        "GB": "United Kingdom",
-        "NL": "Netherlands",
-        "PL": "Poland",
-        "SE": "Sweden",
-    })
-    eu["iso3"] = eu["country"].map(iso_map)
+    eu["country_name"] = eu["country"].map(EU_NAMES)
+    eu["iso3"] = eu["country"].map(EU_ISO3)
 
     fig = px.choropleth(
         eu,
@@ -334,6 +350,9 @@ def main():
         st.stop()
 
     cac, ltv = load_data(CAC_FILE, LTV_FILE)
+    cac = normalize_country_codes(cac)
+    ltv = normalize_country_codes(ltv)
+
     all_countries = sorted(set(cac["country"].dropna().unique()).union(set(ltv["country"].dropna().unique())))
     all_platforms = sorted(set(cac["platform"].dropna().unique()).union(set(ltv["platform"].dropna().unique())))
     all_sources = sorted(set(cac["ad_source"].dropna().unique()).union(set(ltv["ad_source"].dropna().unique())))
