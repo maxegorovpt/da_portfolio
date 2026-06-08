@@ -202,7 +202,51 @@ def aggregate_dim(cac_f, ltv_f, dim):
     return merged.sort_values("total_revenue", ascending=False)
 
 
-# ── Monthly time-series helper ────────────────────────────────────────────────
+# ── Monthly time-series helpers ──────────────────────────────────────────────
+
+def _monthly_series_by_dim(cac_f, ltv_f, dim, top_n=8):
+    """
+    Monthly aggregation grouped by (month, dim).
+    Returns a long DataFrame or None if date columns are missing.
+    Limits to top_n dimensions by total revenue to keep charts readable.
+    """
+    has_cac_date = "campaign_start_date" in cac_f.columns and not cac_f["campaign_start_date"].isna().all()
+    has_ltv_date = "first_purchase_date" in ltv_f.columns and not ltv_f["first_purchase_date"].isna().all()
+    if not has_cac_date or not has_ltv_date:
+        return None
+    if dim not in cac_f.columns or dim not in ltv_f.columns:
+        return None
+
+    spend_m = (
+        cac_f.dropna(subset=["campaign_start_date", dim])
+        .assign(month=lambda d: d["campaign_start_date"].dt.to_period("M").dt.to_timestamp())
+        .groupby(["month", dim], as_index=False)
+        .agg(spend=("total_spend_usd", "sum"), new_customers=("new_customers", "sum"))
+    )
+    rev_m = (
+        ltv_f.dropna(subset=["first_purchase_date", dim])
+        .assign(month=lambda d: d["first_purchase_date"].dt.to_period("M").dt.to_timestamp())
+        .groupby(["month", dim], as_index=False)
+        .agg(revenue=("total_revenue", "sum"), users=("user_id", "nunique"))
+    )
+    m = spend_m.merge(rev_m, on=["month", dim], how="outer").fillna(0).sort_values("month")
+    if len(m) < 2:
+        return None
+
+    # Keep only top_n dims by total revenue
+    top_dims = (
+        m.groupby(dim)["revenue"].sum()
+        .nlargest(top_n).index.tolist()
+    )
+    m = m[m[dim].isin(top_dims)]
+
+    m["cac"] = np.where(m["new_customers"] > 0, m["spend"] / m["new_customers"], np.nan)
+    m["avg_ltv"] = np.where(m["users"] > 0, m["revenue"] / m["users"], np.nan)
+    m["ltv_cac_ratio"] = np.where(m["cac"] > 0, m["avg_ltv"] / m["cac"], np.nan)
+    m["roas"] = np.where(m["spend"] > 0, m["revenue"] / m["spend"], np.nan)
+    m["gross_profit"] = m["revenue"] - m["spend"]
+    return m
+
 
 def _monthly_series(cac_f, ltv_f):
     """
@@ -428,6 +472,79 @@ def make_trend_ratios(m):
     return _line_layout(fig, "Monthly LTV:CAC & ROAS Trends", y_prefix="")
 
 
+# ── Multi-line per-dimension trend charts ────────────────────────────────────
+
+_COLORS = [
+    "#6366f1", "#0ea5e9", "#22c55e", "#f59e0b", "#ef4444",
+    "#a855f7", "#14b8a6", "#f97316", "#ec4899", "#84cc16",
+]
+
+
+def _multi_line(md, dim, y_col, title, y_fmt="$", ref_lines=None):
+    """Generic multi-line chart: one line per dim value, x=month."""
+    fig = go.Figure()
+    dims_in = md[dim].unique()
+    for i, d in enumerate(dims_in):
+        sub = md[md[dim] == d].sort_values("month")
+        hover = f"$%{{y:,.0f}}" if y_fmt == "$" else "%{y:.2f}x" if y_fmt == "x" else "%{y:,.0f}"
+        fig.add_trace(go.Scatter(
+            x=sub["month"], y=sub[y_col],
+            name=str(d), mode="lines+markers",
+            line=dict(color=_COLORS[i % len(_COLORS)], width=2),
+            hovertemplate=f"<b>{d}</b><br>{hover}<extra></extra>",
+        ))
+    if ref_lines:
+        for val, dash, color, label in ref_lines:
+            fig.add_hline(y=val, line_dash=dash, line_color=color, annotation_text=label)
+    prefix = "$" if y_fmt == "$" else ""
+    fig.update_layout(
+        title=title, template=CHART_TEMPLATE, height=420, margin=CHART_MARGIN,
+        title_font=dict(size=18), hovermode="x unified",
+        legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="left", x=0),
+    )
+    if prefix:
+        fig.update_yaxes(tickprefix=prefix, separatethousands=True)
+    return fig
+
+
+def make_dim_trend_spend(md, dim, label):
+    return _multi_line(md, dim, "spend", f"Monthly Spend by {label}")
+
+
+def make_dim_trend_revenue(md, dim, label):
+    return _multi_line(md, dim, "revenue", f"Monthly Revenue by {label}")
+
+
+def make_dim_trend_customers(md, dim, label):
+    return _multi_line(md, dim, "new_customers", f"Monthly New Customers by {label}", y_fmt="n")
+
+
+def make_dim_trend_cac(md, dim, label):
+    return _multi_line(md, dim, "cac", f"Monthly CAC by {label}")
+
+
+def make_dim_trend_ltv(md, dim, label):
+    return _multi_line(md, dim, "avg_ltv", f"Monthly Avg LTV by {label}")
+
+
+def make_dim_trend_roas(md, dim, label):
+    return _multi_line(
+        md, dim, "roas", f"Monthly ROAS by {label}", y_fmt="x",
+        ref_lines=[(3, "dot", "#22c55e", "Target 3x"), (1, "dash", "#ef4444", "Break-even 1x")],
+    )
+
+
+def make_dim_trend_ltv_cac(md, dim, label):
+    return _multi_line(
+        md, dim, "ltv_cac_ratio", f"Monthly LTV:CAC by {label}", y_fmt="x",
+        ref_lines=[(3, "dot", "#22c55e", "Target 3x"), (1, "dash", "#ef4444", "Break-even 1x")],
+    )
+
+
+def make_dim_trend_profit(md, dim, label):
+    return _multi_line(md, dim, "gross_profit", f"Monthly Gross Profit by {label}")
+
+
 # ── Table ─────────────────────────────────────────────────────────────────────
 
 def top_table(df, dim):
@@ -521,6 +638,42 @@ def main():
             st.plotly_chart(make_trend_ratios(monthly), use_container_width=True)
 
         st.plotly_chart(make_trend_cac_ltv(monthly), use_container_width=True)
+
+    # ── Per-dimension trends ──────────────────────────────────────────────────
+    divider()
+    st.subheader("Metric Trends by Segment")
+    st.caption("Track how each ad source, platform, or country moves over time. Top 8 segments by revenue are shown.")
+
+    trend_dims = {"Ad Source": "ad_source", "Platform": "platform", "Country": "country"}
+    tdim_label = st.radio("Segment by", list(trend_dims.keys()), horizontal=True, key="trend_dim_radio")
+    tdim = trend_dims[tdim_label]
+    md = _monthly_series_by_dim(cac_f, ltv_f, tdim)
+
+    if md is not None:
+        metric_options = {
+            "Revenue": make_dim_trend_revenue,
+            "Spend": make_dim_trend_spend,
+            "Gross Profit": make_dim_trend_profit,
+            "New Customers": make_dim_trend_customers,
+            "CAC": make_dim_trend_cac,
+            "Avg LTV": make_dim_trend_ltv,
+            "ROAS": make_dim_trend_roas,
+            "LTV:CAC Ratio": make_dim_trend_ltv_cac,
+        }
+        selected_metrics = st.multiselect(
+            "Metrics to display",
+            list(metric_options.keys()),
+            default=["Revenue", "Spend", "CAC", "ROAS"],
+            key="trend_metric_select",
+        )
+        for i in range(0, len(selected_metrics), 2):
+            cols = st.columns(2)
+            for j, metric in enumerate(selected_metrics[i : i + 2]):
+                with cols[j]:
+                    fig = metric_options[metric](md, tdim, tdim_label)
+                    st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Date columns (`campaign_start_date` in CAC, `first_purchase_date` in LTV) are required to show trends.")
 
     # ── Country overview ──────────────────────────────────────────────────────
     divider()
