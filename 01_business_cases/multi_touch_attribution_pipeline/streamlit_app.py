@@ -133,12 +133,30 @@ def safe_div(a, b):
 
 
 def build_kpis(cac_f, ltv_f):
+    """
+    Fixed KPI calculations:
+    - CAC = Total Spend / New Customers
+    - LTV = Total Revenue / Total Unique Users (not mean of ltv_usd column)
+    """
     total_spend = cac_f["total_spend_usd"].sum()
     total_revenue = ltv_f["total_revenue"].sum()
     total_customers = cac_f["new_customers"].sum()
+
+    # CAC = Total Spend / New Customers
     overall_cac = safe_div(total_spend, total_customers)
-    avg_ltv = ltv_f["ltv_usd"].mean()
+
+    # LTV = Total Revenue / Total Unique Users
+    total_users = ltv_f["user_id"].nunique()
+
+    # If no user_id column, use total_customers as the denominator
+    if total_users == 0:
+        total_users = total_customers
+
+    avg_ltv = safe_div(total_revenue, total_users)
+
+    # LTV:CAC Ratio
     ltv_cac_ratio = safe_div(avg_ltv, overall_cac)
+
     return {
         "total_spend": total_spend,
         "total_revenue": total_revenue,
@@ -170,7 +188,6 @@ def aggregate_dim(cac_f, ltv_f, dim):
         .agg(
             total_revenue=("total_revenue", "sum"),
             purchase_count=("purchase_count", "sum"),
-            avg_ltv_usd=("ltv_usd", "mean"),
             users=("user_id", "nunique"),
         )
     )
@@ -180,6 +197,14 @@ def aggregate_dim(cac_f, ltv_f, dim):
         if col in merged.columns:
             merged[col] = pd.to_numeric(merged[col], errors="coerce")
     merged[["total_spend_usd", "new_customers", "total_revenue", "purchase_count", "users"]] = merged[["total_spend_usd", "new_customers", "total_revenue", "purchase_count", "users"]].fillna(0)
+
+    # Calculate avg_ltv_usd per dimension: Revenue / Users
+    merged["avg_ltv_usd"] = np.where(
+        merged["users"] > 0,
+        merged["total_revenue"] / merged["users"],
+        np.nan,
+    )
+
     merged["ltv_cac_ratio"] = np.where(
         merged["cac_usd"] > 0,
         merged["avg_ltv_usd"] / merged["cac_usd"],
@@ -262,8 +287,15 @@ def make_eu_map(cac_f, ltv_f):
     )
 
     ltv_ct = eu_ltv.groupby("country", as_index=False).agg(
-        avg_ltv_usd=("ltv_usd", "mean"),
         total_revenue=("total_revenue", "sum"),
+        users=("user_id", "nunique"),
+    )
+
+    # Calculate LTV per country
+    ltv_ct["avg_ltv_usd"] = np.where(
+        ltv_ct["users"] > 0,
+        ltv_ct["total_revenue"] / ltv_ct["users"],
+        np.nan,
     )
 
     eu = cac_ct.merge(ltv_ct, on="country", how="inner")
@@ -336,7 +368,7 @@ def top_table(df, dim):
     for col in ["total_spend_usd", "cac_usd", "total_revenue", "avg_ltv_usd", "ltv_cac_ratio", "profit_gap"]:
         if col in out.columns:
             out[col] = out[col].round(2)
-    cols = [dim, "new_customers", "total_spend_usd", "cac_usd", "total_revenue", "avg_ltv_usd", "ltv_cac_ratio", "profit_gap"]
+    cols = [dim, "new_customers", "users", "total_spend_usd", "cac_usd", "total_revenue", "avg_ltv_usd", "ltv_cac_ratio", "profit_gap"]
     return out[[c for c in cols if c in out.columns]]
 
 
