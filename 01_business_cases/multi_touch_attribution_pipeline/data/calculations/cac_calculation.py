@@ -9,8 +9,8 @@ sys.path.insert(0, str(PROJECT_DIR))
 from src.loaders import load_purchases_data, load_ads_data
 from src.metrics import calculate_cac
 
-PURCHASES_FILE = DATA_DIR / "purchases" / "purchases.csv"
-ADS_DIR = DATA_DIR / "ads"
+PURCHASES_FILE = DATA_DIR / "source_data" / "purchases.csv"
+ADS_DIR = DATA_DIR / "source_data"
 OUTPUT_FILE = DATA_DIR / "calculations" / "cac.csv"
 OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
