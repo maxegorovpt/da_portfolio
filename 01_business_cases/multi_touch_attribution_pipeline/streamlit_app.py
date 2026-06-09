@@ -279,7 +279,7 @@ def main():
         sel_c = st.multiselect("Country",   all_countries, default=all_countries)
         sel_p = st.multiselect("Platform",  all_platforms, default=all_platforms)
         sel_s = st.multiselect("Ad source", all_sources,   default=all_sources)
-        st.form_submit_button("Apply", use_container_width=True)
+        st.form_submit_button("Apply", width="stretch")
 
     cf, lf = apply_filters(cac, ltv, sel_c, sel_p, sel_s)
 
@@ -305,7 +305,7 @@ def main():
                               hovermode="x unified",
                               legend=dict(orientation="h", y=1.12, x=1, xanchor="right"),
                               yaxis=dict(tickprefix="$", separatethousands=True))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         with c2:
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=mo["month"], y=mo["cac"], name="CAC",
@@ -319,7 +319,7 @@ def main():
                               hovermode="x unified",
                               legend=dict(orientation="h", y=1.12, x=1, xanchor="right"),
                               yaxis=dict(tickprefix="$", separatethousands=True))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         with c3:
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=mo["month"], y=mo["ratio"], name="LTV:CAC",
@@ -332,7 +332,7 @@ def main():
                               title="LTV:CAC Ratio", title_font_size=15,
                               hovermode="x unified",
                               showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # ── Breakdown tabs ─────────────────────────────────────────────────────────
     divider()
@@ -347,7 +347,7 @@ def main():
             md = monthly_by_dim(cf, lf, dim)
 
             # Bar overview
-            st.plotly_chart(bar_overview(df, dim, label), use_container_width=True)
+            st.plotly_chart(bar_overview(df, dim, label), width="stretch")
 
             # Line charts
             if md is not None:
@@ -355,18 +355,18 @@ def main():
                 with c1:
                     st.plotly_chart(
                         line_metric(md, dim, "revenue", f"Revenue Over Time — {label}"),
-                        use_container_width=True)
+                        width="stretch")
                 with c2:
                     st.plotly_chart(
                         line_metric(md, dim, "cac", f"CAC Over Time — {label}"),
-                        use_container_width=True)
+                        width="stretch")
                 with c3:
                     st.plotly_chart(
                         line_metric(md, dim, "ratio", f"LTV:CAC Over Time — {label}",
                                     y_prefix="",
                                     ref_lines=[(3, "dot", "#22c55e", "3x"),
                                                (1, "dash", "#ef4444", "1x")]),
-                        use_container_width=True)
+                        width="stretch")
 
             # Table
             display = df[[dim, "customers", "spend", "cac", "revenue", "ltv", "ratio"]].copy()
@@ -385,8 +385,8 @@ def main():
                     return ""
 
             st.dataframe(
-                display.style.applymap(color_ratio, subset=["LTV:CAC"]),
-                use_container_width=True, hide_index=True,
+                display.style.map(color_ratio, subset=["LTV:CAC"]),
+                width="stretch", hide_index=True,
             )
 
             csv = display.to_csv(index=False).encode("utf-8")
