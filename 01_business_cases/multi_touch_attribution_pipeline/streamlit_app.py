@@ -65,12 +65,21 @@ def load_data(cac_path, ltv_path):
         for df in (cac, ltv):
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], errors="coerce")
+    if "purchase_date" in ltv.columns:
+        ltv["purchase_date"] = pd.to_datetime(ltv["purchase_date"], errors="coerce")
     for col in ["new_customers", "total_spend_usd"]:
         if col in cac.columns:
             cac[col] = pd.to_numeric(cac[col], errors="coerce")
-    for col in ["total_revenue"]:
+    # support both pre-aggregated (total_revenue) and raw (purchase_amount)
+    for col in ["total_revenue", "purchase_amount"]:
         if col in ltv.columns:
             ltv[col] = pd.to_numeric(ltv[col], errors="coerce")
+    # normalise: always expose a "revenue" column on ltv
+    if "total_revenue" not in ltv.columns and "purchase_amount" in ltv.columns:
+        ltv["total_revenue"] = ltv["purchase_amount"]
+    # normalise: use purchase_date as first_purchase_date if missing
+    if "first_purchase_date" not in ltv.columns and "purchase_date" in ltv.columns:
+        ltv["first_purchase_date"] = ltv["purchase_date"]
     return cac, ltv
 
 
@@ -111,8 +120,13 @@ def aggregate(cf, lf, dim):
     ca = (cf.groupby(dim, as_index=False)
             .agg(spend=("total_spend_usd", "sum"), customers=("new_customers", "sum")))
     ca["cac"] = np.where(ca["customers"] > 0, ca["spend"] / ca["customers"], np.nan)
-    la = (lf.groupby(dim, as_index=False)
-            .agg(revenue=("total_revenue", "sum"), users=("user_id", "nunique")))
+    agg_dict = {"total_revenue": ("total_revenue", "sum")}
+    if "user_id" in lf.columns:
+        agg_dict["users"] = ("user_id", "nunique")
+    la = lf.groupby(dim, as_index=False).agg(**agg_dict)
+    if "users" not in la.columns:
+        la["users"] = la["total_revenue"].gt(0).astype(int)  # fallback
+    la = la.rename(columns={"total_revenue": "revenue"})
     m = ca.merge(la, on=dim, how="outer")
     for col in ["spend", "customers", "revenue", "users"]:
         m[col] = pd.to_numeric(m.get(col, 0), errors="coerce").fillna(0)
