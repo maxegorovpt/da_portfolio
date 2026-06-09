@@ -69,6 +69,7 @@ def load_data(cac_path: Path, ltv_path: Path):
     for col in ["new_customers", "total_spend_usd", "cac_usd"]:
         if col in cac.columns:
             cac[col] = pd.to_numeric(cac[col], errors="coerce")
+
     for col in ["total_revenue", "purchase_count", "ltv_usd", "user_id"]:
         if col in ltv.columns:
             ltv[col] = pd.to_numeric(ltv[col], errors="coerce")
@@ -112,18 +113,23 @@ def safe_div(a, b):
 
 
 def build_kpis(cac_f, ltv_f):
-    total_spend = cac_f["total_spend_usd"].sum()
-    total_revenue = ltv_f["total_revenue"].sum()
-    total_customers = cac_f["new_customers"].sum()
+    total_spend = cac_f["total_spend_usd"].sum() if "total_spend_usd" in cac_f.columns else 0
+    total_revenue = ltv_f["total_revenue"].sum() if "total_revenue" in ltv_f.columns else 0
+    total_ltv = ltv_f["ltv_usd"].sum() if "ltv_usd" in ltv_f.columns else total_revenue
+    total_customers = cac_f["new_customers"].sum() if "new_customers" in cac_f.columns else 0
     total_users = ltv_f["user_id"].nunique() if "user_id" in ltv_f.columns else total_customers
 
+    if total_users == 0:
+        total_users = total_customers
+
     overall_cac = safe_div(total_spend, total_customers)
-    avg_ltv = safe_div(total_revenue, total_users if total_users else total_customers)
+    avg_ltv = safe_div(total_ltv, total_users)
     ltv_cac_ratio = safe_div(avg_ltv, overall_cac)
 
     return {
         "total_spend": total_spend,
         "total_revenue": total_revenue,
+        "total_ltv": total_ltv,
         "total_customers": total_customers,
         "overall_cac": overall_cac,
         "avg_ltv": avg_ltv,
@@ -144,9 +150,16 @@ def build_overview_data(cac_f, ltv_f):
         .sort_values("total_revenue", ascending=False)
     )
 
-    overview = spend_by_source.merge(revenue_by_source, on="ad_source", how="outer").fillna(0)
-    overview["net_value"] = overview["total_revenue"] - overview["total_spend_usd"]
-    overview = overview.sort_values("total_revenue", ascending=False)
+    ltv_by_source = (
+        ltv_f.groupby("ad_source", as_index=False)
+        .agg(total_ltv_usd=("ltv_usd", "sum"))
+        .sort_values("total_ltv_usd", ascending=False)
+    )
+
+    overview = spend_by_source.merge(revenue_by_source, on="ad_source", how="outer")
+    overview = overview.merge(ltv_by_source, on="ad_source", how="outer").fillna(0)
+    overview["net_value"] = overview["total_ltv_usd"] - overview["total_spend_usd"]
+    overview = overview.sort_values("total_ltv_usd", ascending=False)
     return overview
 
 
@@ -172,18 +185,24 @@ def build_time_series(cac_f, ltv_f):
         revenue_ts = (
             ltv_f.dropna(subset=["first_purchase_date"])
             .groupby("first_purchase_date", as_index=False)
-            .agg(total_revenue=("total_revenue", "sum"))
+            .agg(
+                total_revenue=("total_revenue", "sum"),
+                total_ltv_usd=("ltv_usd", "sum"),
+            )
             .rename(columns={"first_purchase_date": "date"})
         )
     elif "last_purchase_date" in ltv_f.columns and ltv_f["last_purchase_date"].notna().any():
         revenue_ts = (
             ltv_f.dropna(subset=["last_purchase_date"])
             .groupby("last_purchase_date", as_index=False)
-            .agg(total_revenue=("total_revenue", "sum"))
+            .agg(
+                total_revenue=("total_revenue", "sum"),
+                total_ltv_usd=("ltv_usd", "sum"),
+            )
             .rename(columns={"last_purchase_date": "date"})
         )
     else:
-        revenue_ts = pd.DataFrame(columns=["date", "total_revenue"])
+        revenue_ts = pd.DataFrame(columns=["date", "total_revenue", "total_ltv_usd"])
 
     ts = spend_ts.merge(revenue_ts, on="date", how="outer").fillna(0)
     if ts.empty:
@@ -191,20 +210,20 @@ def build_time_series(cac_f, ltv_f):
 
     ts["date"] = pd.to_datetime(ts["date"], errors="coerce")
     ts = ts.dropna(subset=["date"]).sort_values("date")
-    ts["net_value"] = ts["total_revenue"] - ts["total_spend_usd"]
+    ts["net_value"] = ts["total_ltv_usd"] - ts["total_spend_usd"]
     return ts
 
 
 def make_overview_bar(overview):
     melted = overview.melt(
         id_vars="ad_source",
-        value_vars=["total_spend_usd", "total_revenue"],
+        value_vars=["total_spend_usd", "total_ltv_usd"],
         var_name="metric",
         value_name="value",
     )
     metric_map = {
         "total_spend_usd": "Spend",
-        "total_revenue": "Revenue",
+        "total_ltv_usd": "LTV",
     }
     melted["metric"] = melted["metric"].map(metric_map)
 
@@ -216,7 +235,7 @@ def make_overview_bar(overview):
         barmode="group",
         title="Overview by Ad Source",
         template="plotly_white",
-        color_discrete_map={"Spend": "#0f766e", "Revenue": "#7c3aed"},
+        color_discrete_map={"Spend": "#0f766e", "LTV": "#7c3aed"},
     )
     fig.update_traces(
         hovertemplate="<b>%{x}</b><br>%{fullData.name}: %{y:$,.2f}<extra></extra>"
@@ -236,13 +255,13 @@ def make_overview_bar(overview):
 def make_tracking_line(ts):
     melted = ts.melt(
         id_vars="date",
-        value_vars=["total_spend_usd", "total_revenue", "net_value"],
+        value_vars=["total_spend_usd", "total_ltv_usd", "net_value"],
         var_name="metric",
         value_name="value",
     )
     metric_map = {
         "total_spend_usd": "Spend",
-        "total_revenue": "Revenue",
+        "total_ltv_usd": "LTV",
         "net_value": "Net Value",
     }
     melted["metric"] = melted["metric"].map(metric_map)
@@ -256,7 +275,7 @@ def make_tracking_line(ts):
         template="plotly_white",
         color_discrete_map={
             "Spend": "#0f766e",
-            "Revenue": "#7c3aed",
+            "LTV": "#7c3aed",
             "Net Value": "#ea580c",
         },
         markers=True,
@@ -279,16 +298,10 @@ def make_tracking_line(ts):
 
 def top_table(overview):
     out = overview.copy()
-    for col in ["total_spend_usd", "total_revenue", "net_value"]:
-        out[col] = out[col].round(2)
-    return out.rename(
-        columns={
-            "ad_source": "ad_source",
-            "total_spend_usd": "total_spend_usd",
-            "total_revenue": "total_revenue",
-            "net_value": "net_value",
-        }
-    )
+    for col in ["total_spend_usd", "total_revenue", "total_ltv_usd", "net_value"]:
+        if col in out.columns:
+            out[col] = out[col].round(2)
+    return out[["ad_source", "total_spend_usd", "total_revenue", "total_ltv_usd", "net_value"]]
 
 
 def main():
@@ -320,15 +333,16 @@ def main():
     overview = build_overview_data(cac_f, ltv_f)
     ts = build_time_series(cac_f, ltv_f)
 
-    m1, m2, m3, m4, m5 = st.columns(5)
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
     m1.metric("Total Spend", fmt_money(kpis["total_spend"]))
     m2.metric("Total Revenue", fmt_money(kpis["total_revenue"]))
-    m3.metric("New Customers", fmt_num(kpis["total_customers"]))
-    m4.metric("Overall CAC", fmt_money(kpis["overall_cac"]))
-    m5.metric("Avg LTV", fmt_money(kpis["avg_ltv"]))
+    m3.metric("Total LTV", fmt_money(kpis["total_ltv"]))
+    m4.metric("New Customers", fmt_num(kpis["total_customers"]))
+    m5.metric("Overall CAC", fmt_money(kpis["overall_cac"]))
+    m6.metric("Avg LTV", fmt_money(kpis["avg_ltv"]))
 
     st.markdown(
-        '<div class="small-note">Overview uses a simple grouped bar chart. Tracking uses a line chart with spend, revenue, and net value over time.</div>',
+        '<div class="small-note">This version uses ltv_usd from your calculated LTV file, so dashboard LTV now matches your metrics.py logic.</div>',
         unsafe_allow_html=True,
     )
 
