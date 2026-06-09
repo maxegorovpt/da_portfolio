@@ -385,8 +385,17 @@ def main():
     for col in ["LTV:CAC", "ROAS"]:
         display[col] = display[col].round(2)
 
+    def color_ratio(val):
+        try:
+            v = float(val)
+            if v >= 3:   return "background-color: rgba(34,197,94,0.20); color: #86efac"
+            if v >= 1:   return "background-color: rgba(245,158,11,0.20); color: #fcd34d"
+            return              "background-color: rgba(239,68,68,0.20);  color: #fca5a5"
+        except (ValueError, TypeError):
+            return ""
+
     st.dataframe(
-        display.style.background_gradient(subset=["LTV:CAC"], cmap="RdYlGn", vmin=0, vmax=5),
+        display.style.applymap(color_ratio, subset=["LTV:CAC"]),
         use_container_width=True, hide_index=True,
     )
 
