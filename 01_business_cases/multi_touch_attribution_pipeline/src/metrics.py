@@ -133,8 +133,8 @@ def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=Tru
 
         # Keep only the columns we need and deduplicate so the merge stays 1-to-1
         campaign_meta = (
-            ads[["ad_source", "campaign", "campaign_id", "country", "platform", "campaign_start_date"]]
-            .drop_duplicates()
+            ads.groupby(["ad_source", "campaign", "campaign_id", "country", "platform"], as_index=False)
+            .agg(campaign_start_date=("campaign_start_date", "min"))
         )
 
         join_keys = [
