@@ -181,7 +181,7 @@ def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=Tru
         return pd.DataFrame(columns=ordered_cols)
 
     ltv = (
-        purchases.groupby(group_cols, as_index=False)
+        purchases.groupby(group_cols, as_index=False, dropna=False)
         .agg(
             total_revenue=("purchase_amount", "sum"),
             purchase_count=("purchase_amount", "size"),
