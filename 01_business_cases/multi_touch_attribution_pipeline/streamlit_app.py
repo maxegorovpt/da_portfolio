@@ -28,7 +28,19 @@ def load_data():
     ltv = pd.read_csv(LTV_FILE)
     ads = load_ads_data(SOURCE_DIR)
 
-    # "campaign" is used here because loaders.py renames "campaign_name" to "campaign"
+    # 1. Filter everything strictly to 2025
+    if "first_purchase_date" in cac.columns:
+        cac["first_purchase_date"] = pd.to_datetime(cac["first_purchase_date"], errors="coerce")
+        cac = cac[cac["first_purchase_date"].dt.year == 2025].copy()
+
+    if "first_purchase_date" in ltv.columns:
+        ltv["first_purchase_date"] = pd.to_datetime(ltv["first_purchase_date"], errors="coerce")
+        ltv = ltv[ltv["first_purchase_date"].dt.year == 2025].copy()
+
+    if "campaign_start_date" in ads.columns:
+        ads["campaign_start_date"] = pd.to_datetime(ads["campaign_start_date"], errors="coerce")
+        ads = ads[ads["campaign_start_date"].dt.year == 2025].copy()
+
     for df in [cac, ltv, ads]:
         for col in [
             "country",
@@ -40,17 +52,8 @@ def load_data():
             if col in df.columns:
                 df[col] = df[col].astype(str)
 
-    numeric_cac = [
-        "new_customers",
-        "total_spend_usd",
-        "cac_usd",
-    ]
-
-    numeric_ltv = [
-        "total_revenue",
-        "purchase_count",
-        "ltv_usd",
-    ]
+    numeric_cac = ["new_customers", "total_spend_usd", "cac_usd"]
+    numeric_ltv = ["total_revenue", "purchase_count"]
 
     for col in numeric_cac:
         if col in cac.columns:
@@ -63,9 +66,6 @@ def load_data():
     if "user_id" in ltv.columns:
         ltv["user_id"] = ltv["user_id"].astype(str)
 
-    if "campaign_start_date" in ads.columns:
-        ads["campaign_start_date"] = pd.to_datetime(ads["campaign_start_date"], errors="coerce")
-
     return cac, ltv, ads
 
 
@@ -73,7 +73,6 @@ def safe_div(a, b):
     if b == 0 or pd.isna(b):
         return np.nan
     return a / b
-
 
 def format_short_currency(value):
     if pd.isna(value):
@@ -97,18 +96,22 @@ def build_summary(cac_df, ltv_df, group_col):
         .agg(
             total_spend=("total_spend_usd", "sum"),
             customers=("new_customers", "sum"),
-            avg_cac=("cac_usd", "mean"),
         )
     )
+    # Calculate accurate average CAC
+    spend["avg_cac"] = np.where(spend["customers"] > 0, spend["total_spend"] / spend["customers"], np.nan)
+
     revenue = (
         ltv_df.groupby(group_col, as_index=False)
         .agg(
             total_revenue=("total_revenue", "sum"),
-            total_ltv=("ltv_usd", "sum"),
             purchases=("purchase_count", "sum"),
             users=("user_id", "nunique"),
         )
     )
+    # Calculate accurate LTV = Revenue / Users
+    revenue["avg_ltv"] = np.where(revenue["users"] > 0, revenue["total_revenue"] / revenue["users"], np.nan)
+
     result = spend.merge(
         revenue,
         on=group_col,
@@ -117,27 +120,28 @@ def build_summary(cac_df, ltv_df, group_col):
 
     result["ltv_cac_ratio"] = result.apply(
         lambda x: safe_div(
-            x["total_ltv"],
-            x["total_spend"],
+            x["avg_ltv"],
+            x["avg_cac"],
         ),
         axis=1,
     )
     result["profit"] = (
-            result["total_ltv"] - result["total_spend"]
+            result["total_revenue"] - result["total_spend"]
     )
     result = result.sort_values(
-        "total_ltv",
+        "total_revenue",
         ascending=False,
     )
     return result
 
 
 def draw_chart(df, group_col):
+    # Plotting Total Spend vs Total Revenue (since LTV is now per-user and won't visually scale with total totals)
     chart = df.melt(
         id_vars=group_col,
         value_vars=[
             "total_spend",
-            "total_ltv",
+            "total_revenue",
         ],
         var_name="metric",
         value_name="value",
@@ -145,7 +149,7 @@ def draw_chart(df, group_col):
     chart["metric"] = chart["metric"].replace(
         {
             "total_spend": "Spend",
-            "total_ltv": "LTV",
+            "total_revenue": "Revenue",
         }
     )
     fig = px.bar(
@@ -174,12 +178,17 @@ def draw_line_chart(ads_df, ltv_df, granularity="Month"):
     }
     freq = freq_map.get(granularity, "M")
 
-    # 1. Group LTV data by the selected frequency
+    # 1. Group LTV data (Revenue & Unique Users)
     ltv_df = ltv_df.copy()
     ltv_df["date_group"] = pd.to_datetime(ltv_df["first_purchase_date"]).dt.to_period(freq).dt.to_timestamp()
-    ltv_trend = ltv_df.groupby("date_group", as_index=False)[["total_revenue", "ltv_usd"]].sum()
+    ltv_trend = ltv_df.groupby("date_group", as_index=False).agg(
+        total_revenue=("total_revenue", "sum"),
+        users=("user_id", "nunique")
+    )
+    # LTV = Revenue / Users dynamically over time
+    ltv_trend["ltv"] = np.where(ltv_trend["users"] > 0, ltv_trend["total_revenue"] / ltv_trend["users"], 0)
 
-    # 2. Group raw ADS data by the selected frequency for the exact spend spikes
+    # 2. Group raw ADS data by the selected frequency
     ads_df = ads_df.copy()
     ads_df["date_group"] = ads_df["campaign_start_date"].dt.to_period(freq).dt.to_timestamp()
     cac_trend = ads_df.groupby("date_group", as_index=False)["spend_usd"].sum()
@@ -191,14 +200,14 @@ def draw_line_chart(ads_df, ltv_df, granularity="Month"):
 
     chart_data = trend.melt(
         id_vars="date_group",
-        value_vars=["total_spend_usd", "total_revenue", "ltv_usd"],
+        value_vars=["total_spend_usd", "total_revenue", "ltv"],
         var_name="Metric",
         value_name="Value"
     )
     chart_data["Metric"] = chart_data["Metric"].replace({
         "total_spend_usd": "Spend",
         "total_revenue": "Revenue",
-        "ltv_usd": "LTV"
+        "ltv": "LTV"
     })
 
     # 4. Draw chart
@@ -224,7 +233,7 @@ def draw_line_chart(ads_df, ltv_df, granularity="Month"):
     elif granularity == "Quarter":
         fig.update_xaxes(dtick="M3", tickformat="Q%q %Y")
     else:
-        fig.update_xaxes(dtick=None, tickformat=None)  # Let Plotly handle days/weeks auto-scaling
+        fig.update_xaxes(dtick=None, tickformat=None)
 
     return fig
 
@@ -242,11 +251,11 @@ if not LTV_FILE.exists():
 cac, ltv, ads = load_data()
 
 if cac.empty:
-    st.error("cac.csv contains no data")
+    st.error("cac.csv contains no data for 2025")
     st.stop()
 
 if ltv.empty:
-    st.error("ltv.csv contains no data")
+    st.error("ltv.csv contains no data for 2025")
     st.stop()
 
 st.sidebar.header("Filters")
@@ -290,17 +299,17 @@ cac = cac[
     cac["country"].isin(selected_country)
     & cac["platform"].isin(selected_platform)
     & cac["ad_source"].isin(selected_source)
-    ]
+]
 ltv = ltv[
     ltv["country"].isin(selected_country)
     & ltv["platform"].isin(selected_platform)
     & ltv["ad_source"].isin(selected_source)
-    ]
+]
 ads = ads[
     ads["country"].isin(selected_country)
     & ads["platform"].isin(selected_platform)
     & ads["ad_source"].isin(selected_source)
-    ]
+]
 
 total_spend = cac["total_spend_usd"].sum()
 total_customers = cac["new_customers"].sum()
@@ -309,11 +318,12 @@ overall_cac = safe_div(
     total_customers,
 )
 
-total_ltv = ltv["ltv_usd"].sum()
 total_revenue = ltv["total_revenue"].sum()
 users = ltv["user_id"].nunique()
+
+# 2. LTV KPI is strictly Revenue / Users
 avg_ltv = safe_div(
-    total_ltv,
+    total_revenue,
     users,
 )
 
@@ -334,7 +344,7 @@ c2.metric(
 )
 c3.metric(
     "LTV",
-    format_short_currency(total_ltv),
+    format_short_currency(avg_ltv),
 )
 c4.metric(
     "Customers",
@@ -369,7 +379,7 @@ with col2:
     time_grain = st.radio(
         "Granularity:",
         ["Day", "Week", "Month", "Quarter"],
-        index=2,  # Defaults to "Month"
+        index=2, # Defaults to "Month"
         horizontal=True,
         label_visibility="collapsed"
     )
