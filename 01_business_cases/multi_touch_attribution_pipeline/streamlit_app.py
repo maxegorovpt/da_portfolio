@@ -305,22 +305,22 @@ cac = cac[
     cac["country"].isin(selected_country)
     & cac["platform"].isin(selected_platform)
     & cac["ad_source"].isin(selected_source)
-    ]
+]
 ltv = ltv[
     ltv["country"].isin(selected_country)
     & ltv["platform"].isin(selected_platform)
     & ltv["ad_source"].isin(selected_source)
-    ]
+]
 ads = ads[
     ads["country"].isin(selected_country)
     & ads["platform"].isin(selected_platform)
     & ads["ad_source"].isin(selected_source)
-    ]
+]
 purchases = purchases[
     purchases["country"].isin(selected_country)
     & purchases["platform"].isin(selected_platform)
     & purchases["ad_source"].isin(selected_source)
-    ]
+]
 
 total_spend = cac["total_spend_usd"].sum()
 total_customers = cac["new_customers"].sum()
@@ -411,7 +411,6 @@ with tab1:
     st.subheader("Platform Breakdown")
     platform_df = build_summary(
         cac,
-        ltv,
         purchases,
         "platform",
     )
@@ -432,7 +431,6 @@ with tab2:
     st.subheader("Ad Source Breakdown")
     source_df = build_summary(
         cac,
-        ltv,
         purchases,
         "ad_source",
     )
@@ -453,7 +451,6 @@ with tab3:
     st.subheader("Country Breakdown")
     country_df = build_summary(
         cac,
-        ltv,
         purchases,
         "country",
     )
