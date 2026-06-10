@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import sys
 
 st.set_page_config(
     page_title="LTV vs CAC Dashboard",
@@ -10,8 +11,13 @@ st.set_page_config(
     layout="wide",
 )
 
+# Setup paths and import your loader
 BASE_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(BASE_DIR))
+from src.loaders import load_ads_data
+
 DATA_DIR = BASE_DIR / "data" / "calculations"
+SOURCE_DIR = BASE_DIR / "data" / "source_data"  # Path to your raw ads folder
 CAC_FILE = DATA_DIR / "cac.csv"
 LTV_FILE = DATA_DIR / "ltv.csv"
 
@@ -20,9 +26,10 @@ LTV_FILE = DATA_DIR / "ltv.csv"
 def load_data():
     cac = pd.read_csv(CAC_FILE)
     ltv = pd.read_csv(LTV_FILE)
+    ads = load_ads_data(SOURCE_DIR)
 
     # "campaign" is used here because loaders.py renames "campaign_name" to "campaign"
-    for df in [cac, ltv]:
+    for df in [cac, ltv, ads]:
         for col in [
             "country",
             "platform",
@@ -56,13 +63,17 @@ def load_data():
     if "user_id" in ltv.columns:
         ltv["user_id"] = ltv["user_id"].astype(str)
 
-    return cac, ltv
+    if "campaign_start_date" in ads.columns:
+        ads["campaign_start_date"] = pd.to_datetime(ads["campaign_start_date"], errors="coerce")
+
+    return cac, ltv, ads
 
 
 def safe_div(a, b):
     if b == 0 or pd.isna(b):
         return np.nan
     return a / b
+
 
 def format_short_currency(value):
     if pd.isna(value):
@@ -153,7 +164,7 @@ def draw_chart(df, group_col):
     return fig
 
 
-def draw_line_chart(cac_df, ltv_df, granularity="Month"):
+def draw_line_chart(ads_df, ltv_df, granularity="Month"):
     # Map selection to pandas frequency strings
     freq_map = {
         "Day": "D",
@@ -168,31 +179,11 @@ def draw_line_chart(cac_df, ltv_df, granularity="Month"):
     ltv_df["date_group"] = pd.to_datetime(ltv_df["first_purchase_date"]).dt.to_period(freq).dt.to_timestamp()
     ltv_trend = ltv_df.groupby("date_group", as_index=False)[["total_revenue", "ltv_usd"]].sum()
 
-    # 2. Spread CAC data evenly across active periods (Days/Weeks/Months/Quarters)
-    cac_df = cac_df.copy()
-    cac_df["start"] = pd.to_datetime(cac_df["first_purchase_date"]).dt.to_period(freq)
-    cac_df["end"] = pd.to_datetime(cac_df["last_purchase_date"]).dt.to_period(freq)
-
-    spend_data = []
-    for _, row in cac_df.iterrows():
-        if pd.isna(row["start"]) or pd.isna(row["end"]):
-            continue
-
-        # Get all periods (e.g., all weeks) between the start and end date
-        periods = pd.period_range(start=row["start"], end=row["end"], freq=freq)
-        periods_count = len(periods)
-        spend_per_period = row["total_spend_usd"] / periods_count
-
-        for p in periods:
-            spend_data.append({
-                "date_group": p.to_timestamp(),
-                "total_spend_usd": spend_per_period
-            })
-
-    if spend_data:
-        cac_trend = pd.DataFrame(spend_data).groupby("date_group", as_index=False)["total_spend_usd"].sum()
-    else:
-        cac_trend = pd.DataFrame(columns=["date_group", "total_spend_usd"])
+    # 2. Group raw ADS data by the selected frequency for the exact spend spikes
+    ads_df = ads_df.copy()
+    ads_df["date_group"] = ads_df["campaign_start_date"].dt.to_period(freq).dt.to_timestamp()
+    cac_trend = ads_df.groupby("date_group", as_index=False)["spend_usd"].sum()
+    cac_trend = cac_trend.rename(columns={"spend_usd": "total_spend_usd"})
 
     # 3. Merge, sort, and reshape
     trend = pd.merge(cac_trend, ltv_trend, on="date_group", how="outer").fillna(0)
@@ -248,7 +239,7 @@ if not LTV_FILE.exists():
     st.error("ltv.csv not found")
     st.stop()
 
-cac, ltv = load_data()
+cac, ltv, ads = load_data()
 
 if cac.empty:
     st.error("cac.csv contains no data")
@@ -294,6 +285,7 @@ selected_source = st.sidebar.multiselect(
     default=sources,
 )
 
+# Apply filters
 cac = cac[
     cac["country"].isin(selected_country)
     & cac["platform"].isin(selected_platform)
@@ -303,6 +295,11 @@ ltv = ltv[
     ltv["country"].isin(selected_country)
     & ltv["platform"].isin(selected_platform)
     & ltv["ad_source"].isin(selected_source)
+    ]
+ads = ads[
+    ads["country"].isin(selected_country)
+    & ads["platform"].isin(selected_platform)
+    & ads["ad_source"].isin(selected_source)
     ]
 
 total_spend = cac["total_spend_usd"].sum()
@@ -372,12 +369,12 @@ with col2:
     time_grain = st.radio(
         "Granularity:",
         ["Day", "Week", "Month", "Quarter"],
-        index=2, # Defaults to "Month"
+        index=2,  # Defaults to "Month"
         horizontal=True,
         label_visibility="collapsed"
     )
 
-st.plotly_chart(draw_line_chart(cac, ltv, granularity=time_grain), width="stretch")
+st.plotly_chart(draw_line_chart(ads, ltv, granularity=time_grain), width="stretch")
 
 st.divider()
 
