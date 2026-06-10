@@ -21,6 +21,7 @@ def load_data():
     cac = pd.read_csv(CAC_FILE)
     ltv = pd.read_csv(LTV_FILE)
 
+    # "campaign" is used here because loaders.py renames "campaign_name" to "campaign"
     for df in [cac, ltv]:
         for col in [
             "country",
@@ -133,6 +134,41 @@ def draw_chart(df, group_col):
         height=450,
         yaxis_title="USD",
         xaxis_title="",
+    )
+    return fig
+
+
+def draw_line_chart(cac_df, ltv_df):
+    cac_trend = cac_df.groupby("first_purchase_date", as_index=False)["total_spend_usd"].sum()
+    ltv_trend = ltv_df.groupby("first_purchase_date", as_index=False)[["total_revenue", "ltv_usd"]].sum()
+
+    trend = pd.merge(cac_trend, ltv_trend, on="first_purchase_date", how="outer").fillna(0)
+    trend = trend.sort_values("first_purchase_date")
+
+    chart_data = trend.melt(
+        id_vars="first_purchase_date",
+        value_vars=["total_spend_usd", "total_revenue", "ltv_usd"],
+        var_name="Metric",
+        value_name="Value"
+    )
+    chart_data["Metric"] = chart_data["Metric"].replace({
+        "total_spend_usd": "Spend",
+        "total_revenue": "Revenue",
+        "ltv_usd": "LTV"
+    })
+
+    fig = px.line(
+        chart_data,
+        x="first_purchase_date",
+        y="Value",
+        color="Metric",
+        template="plotly_white",
+    )
+    fig.update_layout(
+        height=350,
+        yaxis_title="USD",
+        xaxis_title="",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     return fig
 
@@ -264,6 +300,11 @@ c6.metric(
     "LTV/CAC",
     ratio_display,
 )
+
+st.divider()
+st.subheader("📈 Dynamic Tracking")
+st.plotly_chart(draw_line_chart(cac, ltv), width="stretch")
+st.divider()
 
 tab1, tab2, tab3 = st.tabs(
     [
