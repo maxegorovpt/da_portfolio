@@ -1,6 +1,6 @@
 # 📊 LTV vs CAC Marketing Dashboard
 
-**Live Dashboard:** [View the App on Streamlit](https://daportfolio-fta7cytnljfbctyccdljwh.streamlit.app/)
+**Live Dashboard:** [View the App on Streamlit](https://daportfolio-hqxl7fspdra6eyqjs2qmhx.streamlit.app/)
 
 ## Overview
 This project is an end-to-end data analytics portfolio project that calculates, tracks, and visualizes **Customer Acquisition Cost (CAC)** and **Lifetime Value (LTV)** across multiple marketing channels. Built with Python and Streamlit, it processes raw ad spend and purchase data to give stakeholders a clear view of unit economics, marketing efficiency, and cash flow trends for the year 2025.
