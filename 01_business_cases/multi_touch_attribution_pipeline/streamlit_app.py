@@ -70,9 +70,13 @@ def load_data(cac_path: Path, ltv_path: Path):
         if col in cac.columns:
             cac[col] = pd.to_numeric(cac[col], errors="coerce")
 
-    for col in ["total_revenue", "purchase_count", "ltv_usd", "user_id"]:
+    for col in ["total_revenue", "purchase_count", "ltv_usd"]:
         if col in ltv.columns:
             ltv[col] = pd.to_numeric(ltv[col], errors="coerce")
+
+    # user_id in LTV should stay as string for nunique counting
+    if "user_id" in ltv.columns:
+        ltv["user_id"] = ltv["user_id"].astype(str)
 
     return cac, ltv
 
@@ -117,8 +121,9 @@ def build_kpis(cac_f, ltv_f):
     total_revenue = ltv_f["total_revenue"].sum() if "total_revenue" in ltv_f.columns else 0
     total_ltv = ltv_f["ltv_usd"].sum() if "ltv_usd" in ltv_f.columns else total_revenue
     total_customers = cac_f["new_customers"].sum() if "new_customers" in cac_f.columns else 0
-    total_users = ltv_f["user_id"].nunique() if "user_id" in ltv_f.columns else total_customers
 
+    # FIX: user_id is kept as string now — nunique works correctly
+    total_users = ltv_f["user_id"].nunique() if "user_id" in ltv_f.columns else 0
     if total_users == 0:
         total_users = total_customers
 
@@ -164,45 +169,44 @@ def build_overview_data(cac_f, ltv_f):
 
 
 def build_time_series(cac_f, ltv_f):
-    if "first_purchase_date" in cac_f.columns and cac_f["first_purchase_date"].notna().any():
-        spend_ts = (
-            cac_f.dropna(subset=["first_purchase_date"])
-            .groupby("first_purchase_date", as_index=False)
-            .agg(total_spend_usd=("total_spend_usd", "sum"))
-            .rename(columns={"first_purchase_date": "date"})
-        )
-    elif "campaign_start_date" in cac_f.columns and cac_f["campaign_start_date"].notna().any():
-        spend_ts = (
-            cac_f.dropna(subset=["campaign_start_date"])
-            .groupby("campaign_start_date", as_index=False)
-            .agg(total_spend_usd=("total_spend_usd", "sum"))
-            .rename(columns={"campaign_start_date": "date"})
-        )
-    else:
-        spend_ts = pd.DataFrame(columns=["date", "total_spend_usd"])
+    """
+    Build a monthly time series of spend, revenue, and LTV.
+    Buckets by month so sparse date data still produces a readable trend line,
+    and avoids the mismatch between exact CAC dates and exact LTV dates.
+    """
+    def _monthly(df, date_candidates, agg_spec, label):
+        for col in date_candidates:
+            if col in df.columns and df[col].notna().any():
+                tmp = df.copy()
+                tmp["month"] = (
+                    pd.to_datetime(tmp[col], errors="coerce")
+                    .dt.to_period("M")
+                    .dt.to_timestamp()
+                )
+                return (
+                    tmp.dropna(subset=["month"])
+                    .groupby("month", as_index=False)
+                    .agg(**agg_spec)
+                    .rename(columns={"month": "date"})
+                )
+        return pd.DataFrame(columns=["date"] + list(agg_spec.keys()))
 
-    if "first_purchase_date" in ltv_f.columns and ltv_f["first_purchase_date"].notna().any():
-        revenue_ts = (
-            ltv_f.dropna(subset=["first_purchase_date"])
-            .groupby("first_purchase_date", as_index=False)
-            .agg(
-                total_revenue=("total_revenue", "sum"),
-                total_ltv_usd=("ltv_usd", "sum"),
-            )
-            .rename(columns={"first_purchase_date": "date"})
-        )
-    elif "last_purchase_date" in ltv_f.columns and ltv_f["last_purchase_date"].notna().any():
-        revenue_ts = (
-            ltv_f.dropna(subset=["last_purchase_date"])
-            .groupby("last_purchase_date", as_index=False)
-            .agg(
-                total_revenue=("total_revenue", "sum"),
-                total_ltv_usd=("ltv_usd", "sum"),
-            )
-            .rename(columns={"last_purchase_date": "date"})
-        )
-    else:
-        revenue_ts = pd.DataFrame(columns=["date", "total_revenue", "total_ltv_usd"])
+    spend_ts = _monthly(
+        cac_f,
+        ["first_purchase_date", "campaign_start_date"],
+        {"total_spend_usd": ("total_spend_usd", "sum")},
+        "spend",
+    )
+
+    revenue_ts = _monthly(
+        ltv_f,
+        ["first_purchase_date", "last_purchase_date"],
+        {
+            "total_revenue": ("total_revenue", "sum"),
+            "total_ltv_usd": ("ltv_usd", "sum"),
+        },
+        "revenue",
+    )
 
     ts = spend_ts.merge(revenue_ts, on="date", how="outer").fillna(0)
     if ts.empty:
@@ -271,7 +275,7 @@ def make_tracking_line(ts):
         x="date",
         y="value",
         color="metric",
-        title="Dynamic Tracking Over Time",
+        title="Monthly Tracking",
         template="plotly_white",
         color_discrete_map={
             "Spend": "#0f766e",
@@ -282,7 +286,7 @@ def make_tracking_line(ts):
     )
     fig.update_traces(
         mode="lines+markers",
-        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>%{fullData.name}: %{y:$,.2f}<extra></extra>"
+        hovertemplate="<b>%{x|%Y-%m}</b><br>%{fullData.name}: %{y:$,.2f}<extra></extra>"
     )
     fig.update_layout(
         height=430,
@@ -307,19 +311,45 @@ def top_table(overview):
 def main():
     inject_css()
     st.title("📈 Marketing Overview Dashboard")
-    st.caption("Simple overview with bar chart and line chart for dynamic tracking.")
+    st.caption("LTV and CAC comparison by platform, ad source, and country.")
 
+    # ── File existence check ──────────────────────────────────────────────────
     if not CAC_FILE.exists() or not LTV_FILE.exists():
-        st.error(f"Missing files. Expected: {CAC_FILE} and {LTV_FILE}")
+        missing = [str(f) for f in (CAC_FILE, LTV_FILE) if not f.exists()]
+        st.error(f"Missing data file(s): {', '.join(missing)}\n\nRe-run the calculation scripts to generate them.")
         st.stop()
 
     cac, ltv = load_data(CAC_FILE, LTV_FILE)
     cac = normalize_country_codes(cac)
     ltv = normalize_country_codes(ltv)
 
-    all_countries = sorted(set(cac["country"].dropna().unique()).union(set(ltv["country"].dropna().unique())))
-    all_platforms = sorted(set(cac["platform"].dropna().unique()).union(set(ltv["platform"].dropna().unique())))
-    all_sources = sorted(set(cac["ad_source"].dropna().unique()).union(set(ltv["ad_source"].dropna().unique())))
+    # ── Data health checks ────────────────────────────────────────────────────
+    if cac.empty:
+        st.error(
+            "cac.csv loaded but contains no rows. "
+            "Re-run `cac_calculation.py` and check that purchases.csv is populated."
+        )
+        st.stop()
+
+    if ltv.empty:
+        st.error(
+            "ltv.csv loaded but contains no rows. "
+            "This usually means none of the purchase `campaign_id` values matched "
+            "those in your ads files. Re-run `ltv_calculation.py` — the updated "
+            "`metrics.py` keeps unmatched purchases rather than dropping them."
+        )
+        st.stop()
+
+    # ── Sidebar filters ───────────────────────────────────────────────────────
+    all_countries = sorted(
+        set(cac["country"].dropna().unique()).union(set(ltv["country"].dropna().unique()))
+    )
+    all_platforms = sorted(
+        set(cac["platform"].dropna().unique()).union(set(ltv["platform"].dropna().unique()))
+    )
+    all_sources = sorted(
+        set(cac["ad_source"].dropna().unique()).union(set(ltv["ad_source"].dropna().unique()))
+    )
 
     st.sidebar.header("Filters")
     with st.sidebar.form("filters_form"):
@@ -329,6 +359,12 @@ def main():
         st.form_submit_button("Apply filters", use_container_width=True)
 
     cac_f, ltv_f = apply_filters(cac, ltv, selected_countries, selected_platforms, selected_sources)
+
+    if cac_f.empty and ltv_f.empty:
+        st.warning("No data matches the selected filters. Try broadening your selection.")
+        st.stop()
+
+    # ── KPIs ──────────────────────────────────────────────────────────────────
     kpis = build_kpis(cac_f, ltv_f)
     overview = build_overview_data(cac_f, ltv_f)
     ts = build_time_series(cac_f, ltv_f)
@@ -341,20 +377,28 @@ def main():
     m5.metric("Overall CAC", fmt_money(kpis["overall_cac"]))
     m6.metric("Avg LTV", fmt_money(kpis["avg_ltv"]))
 
+    # ── Dynamic status note (replaces the hardcoded dev comment) ─────────────
+    ltv_record_count = len(ltv_f)
     st.markdown(
-        '<div class="small-note">This version uses ltv_usd from your calculated LTV file, so dashboard LTV now matches your metrics.py logic.</div>',
+        f'<div class="small-note">'
+        f'{ltv_record_count:,} LTV records · '
+        f'{fmt_num(kpis["total_customers"])} new customers · '
+        f'LTV/CAC ratio: {fmt_num(kpis["ltv_cac_ratio"])}x'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
+    # ── Charts ────────────────────────────────────────────────────────────────
     left, right = st.columns(2)
     with left:
         st.plotly_chart(make_overview_bar(overview), use_container_width=True)
     with right:
         if ts.empty:
-            st.info("No date fields available for dynamic tracking with the current files.")
+            st.info("No date data available for the monthly tracking chart.")
         else:
             st.plotly_chart(make_tracking_line(ts), use_container_width=True)
 
+    # ── Overview table ────────────────────────────────────────────────────────
     st.subheader("Overview table")
     table_df = top_table(overview)
     st.dataframe(table_df, use_container_width=True, hide_index=True)

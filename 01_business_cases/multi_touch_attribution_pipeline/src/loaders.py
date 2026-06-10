@@ -116,6 +116,12 @@ def _standardize_ads_frame(df, filename):
     if _is_affiliate_file(df):
         return _standardize_affiliate_frame(df)
 
+    # FIX: if both date_day and campaign_start_date are present, prefer
+    # campaign_start_date and drop date_day BEFORE renaming to avoid the
+    # _dedup_columns keeping whichever column happened to appear first.
+    if "campaign_start_date" in df.columns and "date_day" in df.columns:
+        df = df.drop(columns=["date_day"])
+
     df = df.rename(columns={
         "source": "ad_source",
         "channel": "ad_source",
@@ -132,7 +138,8 @@ def _standardize_ads_frame(df, filename):
         "geo": "country",
         "country_code": "country",
         "flatform": "platform",
-        "campaign_start_date": "campaign_start_date",
+        # date_day only gets promoted to campaign_start_date when
+        # campaign_start_date was not already present (handled above)
         "date_day": "campaign_start_date",
     })
 
@@ -222,11 +229,19 @@ def load_purchases_data(path):
     base_cols = ["user_id", "purchase_date", "platform", "ad_source", "purchase_amount", "country"]
     optional_cols = [c for c in ("affiliate_id", "affiliate_name", "campaign", "campaign_id") if c in df.columns]
 
-    return df[base_cols + optional_cols]
+    loaded = df[base_cols + optional_cols]
+
+    # Warn loudly if any rows were lost to bad dates so data issues surface early
+    bad_dates = loaded["purchase_date"].isna().sum()
+    if bad_dates:
+        print(f"[loaders] WARNING: {bad_dates} purchase row(s) have unparseable dates and will be ignored.")
+
+    return loaded
 
 
 def load_ads_data(path):
     path = Path(path)
+    # Exclude any file whose name contains "purchase" (case-insensitive)
     ad_files = sorted([p for p in path.glob("*.csv") if "purchase" not in p.name.lower()])
     if not ad_files:
         raise FileNotFoundError(f"No ad CSV files found in {path}")
@@ -236,4 +251,10 @@ def load_ads_data(path):
         raw = pd.read_csv(file)
         frames.append(_standardize_ads_frame(raw, file))
 
-    return pd.concat(frames, ignore_index=True)
+    combined = pd.concat(frames, ignore_index=True)
+
+    # Diagnostic: report how many rows came from each file
+    print(f"[loaders] Loaded {len(combined)} ad rows from {len(ad_files)} file(s): "
+          f"{[f.name for f in ad_files]}")
+
+    return combined

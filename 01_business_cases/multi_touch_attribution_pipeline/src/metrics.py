@@ -114,6 +114,14 @@ def calculate_affiliate_cac(purchases, ads):
 
 
 def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=True):
+    """
+    Calculate LTV per user, grouped by ad source / platform / country.
+
+    campaign_level=True further segments by campaign and filters purchases to
+    those that occurred on or after the campaign start date.  Purchases whose
+    campaign_id has no matching entry in the ads table are kept in a fallback
+    group ("unknown" campaign) rather than silently dropped.
+    """
     purchases = purchases.copy()
     purchases["purchase_date"] = pd.to_datetime(purchases["purchase_date"], errors="coerce")
 
@@ -126,16 +134,51 @@ def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=Tru
             raise ValueError("ads must contain campaign_start_date for campaign-level LTV")
 
         ads["campaign_start_date"] = pd.to_datetime(ads["campaign_start_date"], errors="coerce")
-        campaign_meta = ads[["ad_source", "campaign", "campaign_id", "country", "platform", "campaign_start_date"]].drop_duplicates()
 
-        join_keys = [c for c in ["ad_source", "campaign_id", "campaign", "country", "platform"] if c in purchases.columns and c in campaign_meta.columns]
+        # Keep only the columns we need and deduplicate so the merge stays 1-to-1
+        campaign_meta = (
+            ads[["ad_source", "campaign", "campaign_id", "country", "platform", "campaign_start_date"]]
+            .drop_duplicates()
+        )
+
+        join_keys = [
+            c for c in ["ad_source", "campaign_id", "campaign", "country", "platform"]
+            if c in purchases.columns and c in campaign_meta.columns
+        ]
         purchases = purchases.merge(campaign_meta, on=join_keys, how="left")
-        purchases = purchases.loc[purchases["campaign_start_date"].notna()]
+
+        # FIX: instead of dropping unmatched rows, assign them a fallback start date
+        # so they are still included in the output under their actual ad_source group.
+        unmatched = purchases["campaign_start_date"].isna()
+        if unmatched.any():
+            # Use the purchase date itself as the start date so the >= filter passes
+            purchases.loc[unmatched, "campaign_start_date"] = purchases.loc[unmatched, "purchase_date"]
+            # Mark campaign as unknown where we had no ads-side match
+            if "campaign" in purchases.columns:
+                purchases.loc[unmatched, "campaign"] = purchases.loc[unmatched, "campaign"].fillna("unknown")
+            if "campaign_id" in purchases.columns:
+                purchases.loc[unmatched, "campaign_id"] = purchases.loc[unmatched, "campaign_id"].fillna("unknown")
+
+        # Apply the inclusive start-date filter
         purchases = purchases.loc[purchases["purchase_date"] >= purchases["campaign_start_date"]]
 
-        group_cols = [c for c in ["user_id", "ad_source", "campaign", "campaign_id", "platform", "country"] if c in purchases.columns]
+        group_cols = [
+            c for c in ["user_id", "ad_source", "campaign", "campaign_id", "platform", "country"]
+            if c in purchases.columns
+        ]
     else:
         group_cols = ["user_id", "ad_source", "platform", "country"]
+
+    if purchases.empty:
+        # Return an empty frame with the expected columns so callers don't crash
+        ordered_cols = [
+            c for c in [
+                "user_id", "ad_source", "campaign", "campaign_id", "platform", "country",
+                "total_revenue", "purchase_count", "first_purchase_date", "last_purchase_date", "ltv_usd",
+            ]
+            if c in group_cols or c in ["total_revenue", "purchase_count", "first_purchase_date", "last_purchase_date", "ltv_usd"]
+        ]
+        return pd.DataFrame(columns=ordered_cols)
 
     ltv = (
         purchases.groupby(group_cols, as_index=False)
@@ -162,4 +205,6 @@ def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=Tru
         "total_revenue", "purchase_count", "first_purchase_date", "last_purchase_date", "ltv_usd"
     ] if c in ltv.columns]
 
-    return ltv[ordered_cols].sort_values([c for c in ["user_id", "first_purchase_date"] if c in ltv.columns])
+    return ltv[ordered_cols].sort_values(
+        [c for c in ["user_id", "first_purchase_date"] if c in ltv.columns]
+    )
