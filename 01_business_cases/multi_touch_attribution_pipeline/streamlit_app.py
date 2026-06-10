@@ -390,7 +390,7 @@ with col2:
     time_grain = st.radio(
         "Granularity:",
         ["Day", "Week", "Month", "Quarter"],
-        index=2,  # Defaults to "Month"
+        index=0,  # Defaults to "day"
         horizontal=True,
         label_visibility="collapsed"
     )
