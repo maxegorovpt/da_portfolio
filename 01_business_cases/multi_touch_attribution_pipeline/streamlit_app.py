@@ -153,47 +153,53 @@ def draw_chart(df, group_col):
     return fig
 
 
-def draw_line_chart(cac_df, ltv_df):
-    # LTV trend is easy because users are spread across the year
+def draw_line_chart(cac_df, ltv_df, granularity="Month"):
+    # Map selection to pandas frequency strings
+    freq_map = {
+        "Day": "D",
+        "Week": "W",
+        "Month": "M",
+        "Quarter": "Q"
+    }
+    freq = freq_map.get(granularity, "M")
+
+    # 1. Group LTV data by the selected frequency
     ltv_df = ltv_df.copy()
-    ltv_df["month"] = pd.to_datetime(ltv_df["first_purchase_date"]).dt.to_period("M").dt.to_timestamp()
-    ltv_trend = ltv_df.groupby("month", as_index=False)[["total_revenue", "ltv_usd"]].sum()
+    ltv_df["date_group"] = pd.to_datetime(ltv_df["first_purchase_date"]).dt.to_period(freq).dt.to_timestamp()
+    ltv_trend = ltv_df.groupby("date_group", as_index=False)[["total_revenue", "ltv_usd"]].sum()
 
-    # For CAC, we need to distribute the spend evenly over the active months
-    # between first_purchase_date and last_purchase_date to avoid the "January spike"
+    # 2. Spread CAC data evenly across active periods (Days/Weeks/Months/Quarters)
     cac_df = cac_df.copy()
-    cac_df["start"] = pd.to_datetime(cac_df["first_purchase_date"]).dt.to_period("M")
-    cac_df["end"] = pd.to_datetime(cac_df["last_purchase_date"]).dt.to_period("M")
+    cac_df["start"] = pd.to_datetime(cac_df["first_purchase_date"]).dt.to_period(freq)
+    cac_df["end"] = pd.to_datetime(cac_df["last_purchase_date"]).dt.to_period(freq)
 
-    # Expand the single cac rows into monthly rows
-    monthly_spend = []
+    spend_data = []
     for _, row in cac_df.iterrows():
         if pd.isna(row["start"]) or pd.isna(row["end"]):
             continue
 
-        # Calculate how many months this campaign was active
-        months_active = (row["end"] - row["start"]).n + 1
-        spend_per_month = row["total_spend_usd"] / months_active
+        # Get all periods (e.g., all weeks) between the start and end date
+        periods = pd.period_range(start=row["start"], end=row["end"], freq=freq)
+        periods_count = len(periods)
+        spend_per_period = row["total_spend_usd"] / periods_count
 
-        # Create a row for each active month
-        for m in pd.period_range(start=row["start"], end=row["end"], freq="M"):
-            monthly_spend.append({
-                "month": m.to_timestamp(),
-                "total_spend_usd": spend_per_month
+        for p in periods:
+            spend_data.append({
+                "date_group": p.to_timestamp(),
+                "total_spend_usd": spend_per_period
             })
 
-    if monthly_spend:
-        cac_trend = pd.DataFrame(monthly_spend).groupby("month", as_index=False)["total_spend_usd"].sum()
+    if spend_data:
+        cac_trend = pd.DataFrame(spend_data).groupby("date_group", as_index=False)["total_spend_usd"].sum()
     else:
-        cac_trend = pd.DataFrame(columns=["month", "total_spend_usd"])
+        cac_trend = pd.DataFrame(columns=["date_group", "total_spend_usd"])
 
-    # Merge and sort
-    trend = pd.merge(cac_trend, ltv_trend, on="month", how="outer").fillna(0)
-    trend = trend.sort_values("month")
+    # 3. Merge, sort, and reshape
+    trend = pd.merge(cac_trend, ltv_trend, on="date_group", how="outer").fillna(0)
+    trend = trend.sort_values("date_group")
 
-    # Reshape for Plotly
     chart_data = trend.melt(
-        id_vars="month",
+        id_vars="date_group",
         value_vars=["total_spend_usd", "total_revenue", "ltv_usd"],
         var_name="Metric",
         value_name="Value"
@@ -204,22 +210,30 @@ def draw_line_chart(cac_df, ltv_df):
         "ltv_usd": "LTV"
     })
 
+    # 4. Draw chart
     fig = px.line(
         chart_data,
-        x="month",
+        x="date_group",
         y="Value",
         color="Metric",
         template="plotly_white",
-        markers=True
+        markers=(granularity != "Day")  # Hide markers on 'Day' to prevent clutter
     )
+
     fig.update_layout(
         height=350,
         yaxis_title="USD",
         xaxis_title="",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
-    # Format x-axis to show clean month names (e.g., Jan 2025)
-    fig.update_xaxes(dtick="M1", tickformat="%b %Y")
+
+    # Dynamic axis formatting based on granularity
+    if granularity == "Month":
+        fig.update_xaxes(dtick="M1", tickformat="%b %Y")
+    elif granularity == "Quarter":
+        fig.update_xaxes(dtick="M3", tickformat="Q%q %Y")
+    else:
+        fig.update_xaxes(dtick=None, tickformat=None)  # Let Plotly handle days/weeks auto-scaling
 
     return fig
 
