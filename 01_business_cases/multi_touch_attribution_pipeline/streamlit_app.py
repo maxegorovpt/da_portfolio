@@ -64,6 +64,21 @@ def safe_div(a, b):
         return np.nan
     return a / b
 
+def format_short_currency(value):
+    if pd.isna(value):
+        return "-"
+
+    abs_value = abs(value)
+
+    if abs_value >= 1_000_000_000:
+        return f"${value / 1_000_000_000:.2f}B"
+    if abs_value >= 1_000_000:
+        return f"${value / 1_000_000:.2f}M"
+    if abs_value >= 1_000:
+        return f"${value / 1_000:.2f}K"
+
+    return f"${value:,.0f}"
+
 
 def build_summary(cac_df, ltv_df, group_col):
     spend = (
@@ -264,26 +279,22 @@ c1, c2, c3, c4, c5, c6 = st.columns(6)
 
 c1.metric(
     "Spend",
-    f"${total_spend:,.2f}",
+    format_short_currency(total_spend),
 )
 c2.metric(
     "Revenue",
-    f"${total_revenue:,.2f}",
+    format_short_currency(total_revenue),
 )
 c3.metric(
     "LTV",
-    f"${total_ltv:,.2f}",
+    format_short_currency(total_ltv),
 )
 c4.metric(
     "Customers",
     f"{int(total_customers):,}",
 )
 
-cac_display = (
-    f"${overall_cac:,.2f}"
-    if not pd.isna(overall_cac)
-    else "-"
-)
+cac_display = format_short_currency(overall_cac)
 
 ratio_display = (
     f"{ratio:.2f}x"
