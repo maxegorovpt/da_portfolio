@@ -12,7 +12,6 @@ st.set_page_config(
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data" / "calculations"
-
 CAC_FILE = DATA_DIR / "cac.csv"
 LTV_FILE = DATA_DIR / "ltv.csv"
 
@@ -52,6 +51,7 @@ def load_data():
     for col in numeric_ltv:
         if col in ltv.columns:
             ltv[col] = pd.to_numeric(ltv[col], errors="coerce")
+
     if "user_id" in ltv.columns:
         ltv["user_id"] = ltv["user_id"].astype(str)
 
@@ -65,7 +65,6 @@ def safe_div(a, b):
 
 
 def build_summary(cac_df, ltv_df, group_col):
-
     spend = (
         cac_df.groupby(group_col, as_index=False)
         .agg(
@@ -74,7 +73,6 @@ def build_summary(cac_df, ltv_df, group_col):
             avg_cac=("cac_usd", "mean"),
         )
     )
-
     revenue = (
         ltv_df.groupby(group_col, as_index=False)
         .agg(
@@ -84,7 +82,6 @@ def build_summary(cac_df, ltv_df, group_col):
             users=("user_id", "nunique"),
         )
     )
-
     result = spend.merge(
         revenue,
         on=group_col,
@@ -98,22 +95,17 @@ def build_summary(cac_df, ltv_df, group_col):
         ),
         axis=1,
     )
-
     result["profit"] = (
-        result["total_ltv"]
-        - result["total_spend"]
+            result["total_ltv"] - result["total_spend"]
     )
-
     result = result.sort_values(
         "total_ltv",
         ascending=False,
     )
-
     return result
 
 
 def draw_chart(df, group_col):
-
     chart = df.melt(
         id_vars=group_col,
         value_vars=[
@@ -123,14 +115,12 @@ def draw_chart(df, group_col):
         var_name="metric",
         value_name="value",
     )
-
     chart["metric"] = chart["metric"].replace(
         {
             "total_spend": "Spend",
             "total_ltv": "LTV",
         }
     )
-
     fig = px.bar(
         chart,
         x=group_col,
@@ -139,13 +129,11 @@ def draw_chart(df, group_col):
         barmode="group",
         template="plotly_white",
     )
-
     fig.update_layout(
         height=450,
         yaxis_title="USD",
         xaxis_title="",
     )
-
     return fig
 
 
@@ -161,22 +149,27 @@ if not LTV_FILE.exists():
 
 cac, ltv = load_data()
 
-st.sidebar.header("Filters")
+if cac.empty:
+    st.error("cac.csv contains no data")
+    st.stop()
 
+if ltv.empty:
+    st.error("ltv.csv contains no data")
+    st.stop()
+
+st.sidebar.header("Filters")
 countries = sorted(
     list(
         set(cac["country"].dropna())
         | set(ltv["country"].dropna())
     )
 )
-
 platforms = sorted(
     list(
         set(cac["platform"].dropna())
         | set(ltv["platform"].dropna())
     )
 )
-
 sources = sorted(
     list(
         set(cac["ad_source"].dropna())
@@ -189,13 +182,11 @@ selected_country = st.sidebar.multiselect(
     countries,
     default=countries,
 )
-
 selected_platform = st.sidebar.multiselect(
     "Platform",
     platforms,
     default=platforms,
 )
-
 selected_source = st.sidebar.multiselect(
     "Ad Source",
     sources,
@@ -206,13 +197,12 @@ cac = cac[
     cac["country"].isin(selected_country)
     & cac["platform"].isin(selected_platform)
     & cac["ad_source"].isin(selected_source)
-]
-
+    ]
 ltv = ltv[
     ltv["country"].isin(selected_country)
     & ltv["platform"].isin(selected_platform)
     & ltv["ad_source"].isin(selected_source)
-]
+    ]
 
 total_spend = cac["total_spend_usd"].sum()
 total_customers = cac["new_customers"].sum()
@@ -240,34 +230,39 @@ c1.metric(
     "Spend",
     f"${total_spend:,.2f}",
 )
-
 c2.metric(
     "Revenue",
     f"${total_revenue:,.2f}",
 )
-
 c3.metric(
     "LTV",
     f"${total_ltv:,.2f}",
 )
-
 c4.metric(
     "Customers",
     f"{int(total_customers):,}",
 )
 
+cac_display = (
+    f"${overall_cac:,.2f}"
+    if not pd.isna(overall_cac)
+    else "-"
+)
+
+ratio_display = (
+    f"{ratio:.2f}x"
+    if not pd.isna(ratio)
+    else "-"
+)
+
 c5.metric(
     "CAC",
-    f"${overall_cac:,.2f}",
-    if not pd.isna(overall_cac)
-    else "-",
+    cac_display,
 )
 
 c6.metric(
     "LTV/CAC",
-    f"{ratio:.2f}x",
-    if not pd.isna(ratio)
-    else "-",
+    ratio_display,
 )
 
 tab1, tab2, tab3 = st.tabs(
@@ -279,73 +274,61 @@ tab1, tab2, tab3 = st.tabs(
 )
 
 with tab1:
-
     st.subheader("Platform Breakdown")
-
     platform_df = build_summary(
         cac,
         ltv,
         "platform",
     )
-
     st.plotly_chart(
         draw_chart(
             platform_df,
             "platform",
         ),
-        use_container_width=True,
+        width="stretch",
     )
-
     st.dataframe(
         platform_df.round(2),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
 with tab2:
-
     st.subheader("Ad Source Breakdown")
-
     source_df = build_summary(
         cac,
         ltv,
         "ad_source",
     )
-
     st.plotly_chart(
         draw_chart(
             source_df,
             "ad_source",
         ),
-        use_container_width=True,
+        width="stretch",
     )
-
     st.dataframe(
         source_df.round(2),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
 with tab3:
-
     st.subheader("Country Breakdown")
-
     country_df = build_summary(
         cac,
         ltv,
         "country",
     )
-
     st.plotly_chart(
         draw_chart(
             country_df,
             "country",
         ),
-        use_container_width=True,
+        width="stretch",
     )
-
     st.dataframe(
         country_df.round(2),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
