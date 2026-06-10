@@ -52,6 +52,8 @@ def load_data():
     for col in numeric_ltv:
         if col in ltv.columns:
             ltv[col] = pd.to_numeric(ltv[col], errors="coerce")
+    if "user_id" in ltv.columns:
+        ltv["user_id"] = ltv["user_id"].astype(str)
 
     return cac, ltv
 
