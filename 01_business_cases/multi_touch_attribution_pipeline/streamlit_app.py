@@ -97,7 +97,7 @@ def format_short_currency(value):
     return f"${value:,.0f}"
 
 
-def build_summary(cac_df, ltv_df, group_col):
+def build_summary(cac_df, purchases_df, group_col):
     spend = (
         cac_df.groupby(group_col, as_index=False)
         .agg(
@@ -107,11 +107,12 @@ def build_summary(cac_df, ltv_df, group_col):
     )
     spend["avg_cac"] = np.where(spend["customers"] > 0, spend["total_spend"] / spend["customers"], np.nan)
 
+    # 🚀 FIX: Aggregate directly from RAW purchases to guarantee no duplication
     revenue = (
-        ltv_df.groupby(group_col, as_index=False)
+        purchases_df.groupby(group_col, as_index=False)
         .agg(
-            total_revenue=("total_revenue", "sum"),
-            purchases=("purchase_count", "sum"),
+            total_revenue=("purchase_amount", "sum"),
+            purchases=("purchase_amount", "count"),
             users=("user_id", "nunique"),
         )
     )
@@ -411,6 +412,7 @@ with tab1:
     platform_df = build_summary(
         cac,
         ltv,
+        purchases,
         "platform",
     )
     st.plotly_chart(
@@ -431,6 +433,7 @@ with tab2:
     source_df = build_summary(
         cac,
         ltv,
+        purchases,
         "ad_source",
     )
     st.plotly_chart(
@@ -451,6 +454,7 @@ with tab3:
     country_df = build_summary(
         cac,
         ltv,
+        purchases,
         "country",
     )
     st.plotly_chart(
