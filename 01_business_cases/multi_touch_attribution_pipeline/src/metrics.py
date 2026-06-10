@@ -121,45 +121,35 @@ def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=Tru
     purchases = purchases.copy()
     purchases["purchase_date"] = pd.to_datetime(purchases["purchase_date"], errors="coerce")
 
-    if campaign_level:
-        if ads is None:
-            raise ValueError("ads is required when campaign_level=True")
-
+    if campaign_level and ads is not None:
         ads = ads.copy()
-        if "campaign_start_date" not in ads.columns:
-            raise ValueError("ads must contain campaign_start_date for campaign-level LTV")
+        if "campaign_start_date" in ads.columns:
+            ads["campaign_start_date"] = pd.to_datetime(ads["campaign_start_date"], errors="coerce")
 
-        ads["campaign_start_date"] = pd.to_datetime(ads["campaign_start_date"], errors="coerce")
+            # 1. ONLY match on columns that ACTUALLY exist in both files
+            join_keys = [
+                c for c in ["ad_source", "campaign_id", "campaign", "country", "platform"]
+                if c in purchases.columns and c in ads.columns
+            ]
 
-        # Keep only the columns we need and deduplicate so the merge stays 1-to-1
-        campaign_meta = (
-            ads.groupby(["ad_source", "campaign", "campaign_id", "country", "platform"], as_index=False)
-            .agg(campaign_start_date=("campaign_start_date", "min"))
-        )
+            # 2. Group ads EXACTLY by the join keys so it creates a 1-to-1 match
+            if join_keys:
+                campaign_meta = (
+                    ads.groupby(join_keys, as_index=False)
+                    .agg(campaign_start_date=("campaign_start_date", "min"))
+                )
+                purchases = purchases.merge(campaign_meta, on=join_keys, how="left")
 
-        join_keys = [
-            c for c in ["ad_source", "campaign_id", "campaign", "country", "platform"]
-            if c in purchases.columns and c in campaign_meta.columns
-        ]
-        purchases = purchases.merge(campaign_meta, on=join_keys, how="left")
+                # Fallback start date for unmatched rows
+                unmatched = purchases["campaign_start_date"].isna()
+                if unmatched.any():
+                    purchases.loc[unmatched, "campaign_start_date"] = purchases.loc[unmatched, "purchase_date"]
 
-        # Fallback start date for unmatched rows
-        unmatched = purchases["campaign_start_date"].isna()
-        if unmatched.any():
-            purchases.loc[unmatched, "campaign_start_date"] = purchases.loc[unmatched, "purchase_date"]
-            if "campaign" in purchases.columns:
-                purchases.loc[unmatched, "campaign"] = purchases.loc[unmatched, "campaign"].fillna("unknown")
-            if "campaign_id" in purchases.columns:
-                purchases.loc[unmatched, "campaign_id"] = purchases.loc[unmatched, "campaign_id"].fillna("unknown")
-
-        # ---> THE FILTER WAS COMPLETELY REMOVED FROM HERE <---
-
-        group_cols = [
-            c for c in ["user_id", "ad_source", "campaign", "campaign_id", "platform", "country"]
-            if c in purchases.columns
-        ]
-    else:
-        group_cols = ["user_id", "ad_source", "platform", "country"]
+    # 3. Define grouping columns based on what purchases ACTUALLY has
+    group_cols = [
+        c for c in ["user_id", "ad_source", "campaign", "campaign_id", "platform", "country"]
+        if c in purchases.columns
+    ]
 
     if purchases.empty:
         ordered_cols = [

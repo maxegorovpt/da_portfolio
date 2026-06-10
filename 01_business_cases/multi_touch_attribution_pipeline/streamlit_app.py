@@ -328,7 +328,8 @@ overall_cac = safe_div(
     total_customers,
 )
 
-total_revenue = ltv["total_revenue"].sum()
+# Calculate Revenue exactly from raw cashflow to prevent group duplication
+total_revenue = purchases["purchase_amount"].sum()
 users = ltv["user_id"].nunique()
 
 avg_ltv = safe_div(
