@@ -363,8 +363,22 @@ c6.metric(
 )
 
 st.divider()
-st.subheader("📈 Dynamic Tracking")
-st.plotly_chart(draw_line_chart(cac, ltv), width="stretch")
+
+# Adding the Granularity Filter UI
+col1, col2 = st.columns([1, 2])
+with col1:
+    st.subheader("📈 Dynamic Tracking")
+with col2:
+    time_grain = st.radio(
+        "Granularity:",
+        ["Day", "Week", "Month", "Quarter"],
+        index=2, # Defaults to "Month"
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+
+st.plotly_chart(draw_line_chart(cac, ltv, granularity=time_grain), width="stretch")
+
 st.divider()
 
 tab1, tab2, tab3 = st.tabs(
