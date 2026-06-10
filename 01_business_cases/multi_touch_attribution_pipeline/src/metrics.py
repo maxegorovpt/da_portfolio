@@ -116,11 +116,7 @@ def calculate_affiliate_cac(purchases, ads):
 def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=True):
     """
     Calculate LTV per user, grouped by ad source / platform / country.
-
-    campaign_level=True further segments by campaign and filters purchases to
-    those that occurred on or after the campaign start date.  Purchases whose
-    campaign_id has no matching entry in the ads table are kept in a fallback
-    group ("unknown" campaign) rather than silently dropped.
+    campaign_level=True further segments by campaign.
     """
     purchases = purchases.copy()
     purchases["purchase_date"] = pd.to_datetime(purchases["purchase_date"], errors="coerce")
@@ -147,20 +143,16 @@ def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=Tru
         ]
         purchases = purchases.merge(campaign_meta, on=join_keys, how="left")
 
-        # FIX: instead of dropping unmatched rows, assign them a fallback start date
-        # so they are still included in the output under their actual ad_source group.
+        # Fallback start date for unmatched rows
         unmatched = purchases["campaign_start_date"].isna()
         if unmatched.any():
-            # Use the purchase date itself as the start date so the >= filter passes
             purchases.loc[unmatched, "campaign_start_date"] = purchases.loc[unmatched, "purchase_date"]
-            # Mark campaign as unknown where we had no ads-side match
             if "campaign" in purchases.columns:
                 purchases.loc[unmatched, "campaign"] = purchases.loc[unmatched, "campaign"].fillna("unknown")
             if "campaign_id" in purchases.columns:
                 purchases.loc[unmatched, "campaign_id"] = purchases.loc[unmatched, "campaign_id"].fillna("unknown")
 
-        # Apply the inclusive start-date filter
-        purchases = purchases.loc[purchases["purchase_date"] >= purchases["campaign_start_date"]]
+        # ---> THE FILTER WAS COMPLETELY REMOVED FROM HERE <---
 
         group_cols = [
             c for c in ["user_id", "ad_source", "campaign", "campaign_id", "platform", "country"]
@@ -170,7 +162,6 @@ def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=Tru
         group_cols = ["user_id", "ad_source", "platform", "country"]
 
     if purchases.empty:
-        # Return an empty frame with the expected columns so callers don't crash
         ordered_cols = [
             c for c in [
                 "user_id", "ad_source", "campaign", "campaign_id", "platform", "country",
@@ -181,7 +172,7 @@ def calculate_ltv(purchases, ads=None, campaign_level=False, inclusive_start=Tru
         return pd.DataFrame(columns=ordered_cols)
 
     ltv = (
-        purchases.groupby(group_cols, as_index=False, dropna=False)
+        purchases.groupby(group_cols, as_index=False)
         .agg(
             total_revenue=("purchase_amount", "sum"),
             purchase_count=("purchase_amount", "size"),

@@ -136,7 +136,7 @@ def build_summary(cac_df, ltv_df, group_col):
 
 
 def draw_chart(df, group_col):
-    # Plotting Total Spend vs Total Revenue (since LTV is now per-user and won't visually scale with total totals)
+    # Plotting Total Spend vs Total Revenue
     chart = df.melt(
         id_vars=group_col,
         value_vars=[
@@ -178,19 +178,17 @@ def draw_line_chart(ads_df, ltv_df, granularity="Month"):
     }
     freq = freq_map.get(granularity, "M")
 
-    # 1. Group LTV data (Revenue & Unique Users)
+    # 1. Group LTV data (Revenue)
     ltv_df = ltv_df.copy()
     ltv_df["date_group"] = pd.to_datetime(ltv_df["first_purchase_date"]).dt.to_period(freq).dt.to_timestamp()
     ltv_trend = ltv_df.groupby("date_group", as_index=False).agg(
-        total_revenue=("total_revenue", "sum"),
-        users=("user_id", "nunique")
+        total_revenue=("total_revenue", "sum")
     )
-    # LTV = Revenue / Users dynamically over time
-    ltv_trend["ltv"] = np.where(ltv_trend["users"] > 0, ltv_trend["total_revenue"] / ltv_trend["users"], 0)
 
     # 2. Group raw ADS data by the selected frequency
     ads_df = ads_df.copy()
-    ads_df["date_group"] = ads_df["campaign_start_date"].dt.to_period(freq).dt.to_timestamp()
+    date_col = "date_day" if "date_day" in ads_df.columns else "campaign_start_date"
+    ads_df["date_group"] = pd.to_datetime(ads_df[date_col], errors="coerce").dt.to_period(freq).dt.to_timestamp()
     cac_trend = ads_df.groupby("date_group", as_index=False)["spend_usd"].sum()
     cac_trend = cac_trend.rename(columns={"spend_usd": "total_spend_usd"})
 
@@ -200,14 +198,13 @@ def draw_line_chart(ads_df, ltv_df, granularity="Month"):
 
     chart_data = trend.melt(
         id_vars="date_group",
-        value_vars=["total_spend_usd", "total_revenue", "ltv"],
+        value_vars=["total_spend_usd", "total_revenue"],
         var_name="Metric",
         value_name="Value"
     )
     chart_data["Metric"] = chart_data["Metric"].replace({
-        "total_spend_usd": "Spend",
-        "total_revenue": "Revenue",
-        "ltv": "LTV"
+        "total_spend_usd": "Costs",
+        "total_revenue": "Revenue"
     })
 
     # 4. Draw chart
@@ -321,7 +318,7 @@ overall_cac = safe_div(
 total_revenue = ltv["total_revenue"].sum()
 users = ltv["user_id"].nunique()
 
-# 2. LTV KPI is strictly Revenue / Users
+# LTV is strictly Revenue / Users
 avg_ltv = safe_div(
     total_revenue,
     users,
@@ -374,7 +371,7 @@ st.divider()
 # Adding the Granularity Filter UI
 col1, col2 = st.columns([1, 2])
 with col1:
-    st.subheader("📈 Dynamic Tracking")
+    st.subheader("📈 Costs vs Revenue tracking")
 with col2:
     time_grain = st.radio(
         "Granularity:",
