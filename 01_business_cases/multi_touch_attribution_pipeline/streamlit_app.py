@@ -11,15 +11,16 @@ st.set_page_config(
     layout="wide",
 )
 
-# Setup paths and import your loader
+# Setup paths and import your loaders
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
-from src.loaders import load_ads_data
+from src.loaders import load_ads_data, load_purchases_data
 
 DATA_DIR = BASE_DIR / "data" / "calculations"
-SOURCE_DIR = BASE_DIR / "data" / "source_data"  # Path to your raw ads folder
+SOURCE_DIR = BASE_DIR / "data" / "source_data"  # Path to your raw files
 CAC_FILE = DATA_DIR / "cac.csv"
 LTV_FILE = DATA_DIR / "ltv.csv"
+PURCHASES_FILE = SOURCE_DIR / "purchases.csv"
 
 
 @st.cache_data
@@ -27,6 +28,7 @@ def load_data():
     cac = pd.read_csv(CAC_FILE)
     ltv = pd.read_csv(LTV_FILE)
     ads = load_ads_data(SOURCE_DIR)
+    purchases = load_purchases_data(PURCHASES_FILE)
 
     # 1. Filter everything strictly to 2025
     if "first_purchase_date" in cac.columns:
@@ -41,7 +43,11 @@ def load_data():
         ads["campaign_start_date"] = pd.to_datetime(ads["campaign_start_date"], errors="coerce")
         ads = ads[ads["campaign_start_date"].dt.year == 2025].copy()
 
-    for df in [cac, ltv, ads]:
+    if "purchase_date" in purchases.columns:
+        purchases["purchase_date"] = pd.to_datetime(purchases["purchase_date"], errors="coerce")
+        purchases = purchases[purchases["purchase_date"].dt.year == 2025].copy()
+
+    for df in [cac, ltv, ads, purchases]:
         for col in [
             "country",
             "platform",
@@ -66,13 +72,14 @@ def load_data():
     if "user_id" in ltv.columns:
         ltv["user_id"] = ltv["user_id"].astype(str)
 
-    return cac, ltv, ads
+    return cac, ltv, ads, purchases
 
 
 def safe_div(a, b):
     if b == 0 or pd.isna(b):
         return np.nan
     return a / b
+
 
 def format_short_currency(value):
     if pd.isna(value):
@@ -98,7 +105,6 @@ def build_summary(cac_df, ltv_df, group_col):
             customers=("new_customers", "sum"),
         )
     )
-    # Calculate accurate average CAC
     spend["avg_cac"] = np.where(spend["customers"] > 0, spend["total_spend"] / spend["customers"], np.nan)
 
     revenue = (
@@ -109,7 +115,6 @@ def build_summary(cac_df, ltv_df, group_col):
             users=("user_id", "nunique"),
         )
     )
-    # Calculate accurate LTV = Revenue / Users
     revenue["avg_ltv"] = np.where(revenue["users"] > 0, revenue["total_revenue"] / revenue["users"], np.nan)
 
     result = spend.merge(
@@ -136,7 +141,6 @@ def build_summary(cac_df, ltv_df, group_col):
 
 
 def draw_chart(df, group_col):
-    # Plotting Total Spend vs Total Revenue
     chart = df.melt(
         id_vars=group_col,
         value_vars=[
@@ -168,7 +172,7 @@ def draw_chart(df, group_col):
     return fig
 
 
-def draw_line_chart(ads_df, ltv_df, granularity="Month"):
+def draw_line_chart(ads_df, purchases_df, granularity="Month"):
     # Map selection to pandas frequency strings
     freq_map = {
         "Day": "D",
@@ -178,14 +182,14 @@ def draw_line_chart(ads_df, ltv_df, granularity="Month"):
     }
     freq = freq_map.get(granularity, "M")
 
-    # 1. Group LTV data (Revenue)
-    ltv_df = ltv_df.copy()
-    ltv_df["date_group"] = pd.to_datetime(ltv_df["first_purchase_date"]).dt.to_period(freq).dt.to_timestamp()
-    ltv_trend = ltv_df.groupby("date_group", as_index=False).agg(
-        total_revenue=("total_revenue", "sum")
+    # 1. Group ACTUAL Purchases data (Recognized Revenue over time)
+    purchases_df = purchases_df.copy()
+    purchases_df["date_group"] = pd.to_datetime(purchases_df["purchase_date"]).dt.to_period(freq).dt.to_timestamp()
+    revenue_trend = purchases_df.groupby("date_group", as_index=False).agg(
+        total_revenue=("purchase_amount", "sum")
     )
 
-    # 2. Group raw ADS data by the selected frequency
+    # 2. Group raw ADS data (Costs over time)
     ads_df = ads_df.copy()
     date_col = "date_day" if "date_day" in ads_df.columns else "campaign_start_date"
     ads_df["date_group"] = pd.to_datetime(ads_df[date_col], errors="coerce").dt.to_period(freq).dt.to_timestamp()
@@ -193,7 +197,7 @@ def draw_line_chart(ads_df, ltv_df, granularity="Month"):
     cac_trend = cac_trend.rename(columns={"spend_usd": "total_spend_usd"})
 
     # 3. Merge, sort, and reshape
-    trend = pd.merge(cac_trend, ltv_trend, on="date_group", how="outer").fillna(0)
+    trend = pd.merge(cac_trend, revenue_trend, on="date_group", how="outer").fillna(0)
     trend = trend.sort_values("date_group")
 
     chart_data = trend.melt(
@@ -245,7 +249,11 @@ if not LTV_FILE.exists():
     st.error("ltv.csv not found")
     st.stop()
 
-cac, ltv, ads = load_data()
+if not PURCHASES_FILE.exists():
+    st.error("purchases.csv not found")
+    st.stop()
+
+cac, ltv, ads, purchases = load_data()
 
 if cac.empty:
     st.error("cac.csv contains no data for 2025")
@@ -296,17 +304,22 @@ cac = cac[
     cac["country"].isin(selected_country)
     & cac["platform"].isin(selected_platform)
     & cac["ad_source"].isin(selected_source)
-]
+    ]
 ltv = ltv[
     ltv["country"].isin(selected_country)
     & ltv["platform"].isin(selected_platform)
     & ltv["ad_source"].isin(selected_source)
-]
+    ]
 ads = ads[
     ads["country"].isin(selected_country)
     & ads["platform"].isin(selected_platform)
     & ads["ad_source"].isin(selected_source)
-]
+    ]
+purchases = purchases[
+    purchases["country"].isin(selected_country)
+    & purchases["platform"].isin(selected_platform)
+    & purchases["ad_source"].isin(selected_source)
+    ]
 
 total_spend = cac["total_spend_usd"].sum()
 total_customers = cac["new_customers"].sum()
@@ -318,7 +331,6 @@ overall_cac = safe_div(
 total_revenue = ltv["total_revenue"].sum()
 users = ltv["user_id"].nunique()
 
-# LTV is strictly Revenue / Users
 avg_ltv = safe_div(
     total_revenue,
     users,
@@ -376,12 +388,12 @@ with col2:
     time_grain = st.radio(
         "Granularity:",
         ["Day", "Week", "Month", "Quarter"],
-        index=2, # Defaults to "Month"
+        index=2,  # Defaults to "Month"
         horizontal=True,
         label_visibility="collapsed"
     )
 
-st.plotly_chart(draw_line_chart(ads, ltv, granularity=time_grain), width="stretch")
+st.plotly_chart(draw_line_chart(ads, purchases, granularity=time_grain), width="stretch")
 
 st.divider()
 
