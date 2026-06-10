@@ -9,7 +9,6 @@ This project is an end-to-end data analytics portfolio project that calculates, 
 - **Dynamic Granularity Tracking:** Time-series visualization of Costs vs. Revenue, switchable between Daily, Weekly, Monthly, and Quarterly views.
 - **Multi-Dimensional Breakdowns:** Instantly slice overall performance by **Platform** (iOS/Android), **Ad Source** (Google, Meta, TikTok, etc.), or **Country**.
 - **Interactive Global Filters:** Sidebar filters allow users to drill down into specific regions, platforms, or channels, updating all KPIs and charts simultaneously.
-- **Bulletproof Aggregations:** Backend data pipelines ensure 1-to-1 purchase mapping to prevent revenue duplication across multi-campaign segments.
 
 ## Metrics & Definitions
 The dashboard standardizes marketing metrics to provide a single source of truth:
