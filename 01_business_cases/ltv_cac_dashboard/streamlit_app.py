@@ -153,7 +153,7 @@ def draw_chart(df, group_col):
     )
     chart["metric"] = chart["metric"].replace(
         {
-            "total_spend": "Spend",
+            "total_spend": "Costs",
             "total_revenue": "Revenue",
         }
     )
@@ -164,6 +164,10 @@ def draw_chart(df, group_col):
         color="metric",
         barmode="group",
         template="plotly_white",
+        color_discrete_map={
+            "Revenue": "#2ecc71", # Light Green
+            "Costs": "#95a5a6"    # Grey
+        }
     )
     fig.update_layout(
         height=450,
@@ -219,7 +223,11 @@ def draw_line_chart(ads_df, purchases_df, granularity="Month"):
         y="Value",
         color="Metric",
         template="plotly_white",
-        markers=(granularity != "Day")  # Hide markers on 'Day' to prevent clutter
+        markers=(granularity != "Day"),  # Hide markers on 'Day' to prevent clutter
+        color_discrete_map={
+            "Revenue": "#2ecc71", # Light Green
+            "Costs": "#95a5a6"    # Grey
+        }
     )
 
     fig.update_layout(
@@ -399,30 +407,31 @@ st.plotly_chart(draw_line_chart(ads, purchases, granularity=time_grain), width="
 
 st.divider()
 
+# Reordered Tabs: Country, Ad Source, Platform
 tab1, tab2, tab3 = st.tabs(
     [
-        "📱 Platform",
-        "📢 Ad Source",
         "🌍 Country",
+        "📢 Ad Source",
+        "📱 Platform",
     ]
 )
 
 with tab1:
-    st.subheader("Platform Breakdown")
-    platform_df = build_summary(
+    st.subheader("Country Breakdown")
+    country_df = build_summary(
         cac,
         purchases,
-        "platform",
+        "country",
     )
     st.plotly_chart(
         draw_chart(
-            platform_df,
-            "platform",
+            country_df,
+            "country",
         ),
         width="stretch",
     )
     st.dataframe(
-        platform_df.round(2),
+        country_df.round(2),
         width="stretch",
         hide_index=True,
     )
@@ -448,21 +457,21 @@ with tab2:
     )
 
 with tab3:
-    st.subheader("Country Breakdown")
-    country_df = build_summary(
+    st.subheader("Platform Breakdown")
+    platform_df = build_summary(
         cac,
         purchases,
-        "country",
+        "platform",
     )
     st.plotly_chart(
         draw_chart(
-            country_df,
-            "country",
+            platform_df,
+            "platform",
         ),
         width="stretch",
     )
     st.dataframe(
-        country_df.round(2),
+        platform_df.round(2),
         width="stretch",
         hide_index=True,
     )
