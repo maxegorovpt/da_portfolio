@@ -6,7 +6,7 @@ Welcome to my data analytics portfolio. It showcases practical projects in produ
 
 ## 🚀 About Me
 
-Data Analyst with experience in fintech, healthcare products, and telecom marketing. I specialize in building metric systems, user behavior analysis, and data quality practices to turn raw data into actionable business decisions.
+Data Analyst with strong data engineering foundations, building reliable pipelines and metric systems across fintech, healthcare, and telecom. I design ETL/ELT workflows, automate reporting infrastructure, and enforce data quality at scale — turning raw, messy data into trustworthy, actionable business insights.
 
 ---
 
@@ -20,12 +20,12 @@ Data Analyst with experience in fintech, healthcare products, and telecom market
 
 ## 💼 What I Do
 
-- Product funnel analysis and user journey optimization (registration → activation → retention → revenue).
+- SQL/ETL script creation, report automation, and data quality checks.
+- Data validation rules, DQ alerting, and reliability assurance.
+Product funnel analysis and user journey optimization (registration → activation → retention → revenue).
 - Building dashboards for product, marketing, and ops teams (Superset, Metabase, Power BI).
 - Tracking core metrics: MAU/DAU, retention, churn, ARPU, LTV, conversion.
 - A/B testing setup, metric selection, and statistical hypothesis validation.
-- SQL/ETL script creation, report automation, and data quality checks.
-- Data validation rules, DQ alerting, and reliability assurance.
 
 ---
 
