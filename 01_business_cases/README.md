@@ -4,7 +4,7 @@ This folder contains a selection of business case projects and analyses, coverin
 | No. | Project Name | Description | Tags |
 |-----|-------------|-------------|------|
 | 1 | [flights_dbt_project](./flights_dbt_project) | Flight data analytics project built with dbt and PostgreSQL, from raw ingestion to marts with testing and documentation. | `dwh` `data modelling` `dbt` `sql` `jinja` `yaml`|
-| 2 | [elt_weather_project](./elt_weather_project) | ELT pipeline project ingesting and transforming weather data for downstream analysis. | `elt` `etl` `weather` `pipeline` |
+| 2 | [elt_weather_project](./elt_weather_project) | ELT pipeline project ingesting and transforming weather data for downstream analysis. | `elt` `weather` `pipeline` |
 | 3 | [churn_analysis](./churn_analysis) | Study of customer churn patterns and the factors influencing retention. | `churn` `retention` `classification` |
 | 4 | [claims_trends](./claims_trends) | Examination of claims trends over time to identify patterns and anomalies. | `trends` `anomaly detection` `insurance` |
 | 5 | [errors_in_data](./errors_in_data) | Identification and investigation of errors and inconsistencies in trading datasets. | `data quality` `validation` `trading` |
