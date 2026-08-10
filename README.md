@@ -2,13 +2,6 @@
 
 Welcome! This repository showcases practical, real-world projects in **product analytics, payment systems, fraud detection, and data quality** across fintech, healthcare, and telecom.
 
-<p align="left">
-  <a href="https://www.linkedin.com/in/maxim-egorov"><img src="https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" /></a>
-  <a href="mailto:egorovmaxkrd@gmail.com"><img src="https://img.shields.io/badge/Email-D14836?style=for-the-badge&logo=gmail&logoColor=white" /></a>
-  <a href="https://t.me/maxegorovpt"><img src="https://img.shields.io/badge/Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" /></a>
-  <a href="https://substack.com/@maximegorov"><img src="https://img.shields.io/badge/Substack-FF6719?style=for-the-badge&logo=substack&logoColor=white" /></a>
-</p>
-
 ---
 
 ## 📁 Explore the Portfolio
@@ -74,6 +67,13 @@ Data Analyst with strong data engineering foundations, building reliable pipelin
 - **Email:** [egorovmaxkrd@gmail.com](mailto:egorovmaxkrd@gmail.com)
 - **Telegram:** [@maxegorovpt](https://t.me/maxegorovpt)
 - **Blog (Substack):** [maximegorov](https://substack.com/@maximegorov)
+
+<p align="left">
+  <a href="https://www.linkedin.com/in/maxim-egorov"><img src="https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" /></a>
+  <a href="mailto:egorovmaxkrd@gmail.com"><img src="https://img.shields.io/badge/Email-D14836?style=for-the-badge&logo=gmail&logoColor=white" /></a>
+  <a href="https://t.me/maxegorovpt"><img src="https://img.shields.io/badge/Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" /></a>
+  <a href="https://substack.com/@maximegorov"><img src="https://img.shields.io/badge/Substack-FF6719?style=for-the-badge&logo=substack&logoColor=white" /></a>
+</p>
 
 ---
 
