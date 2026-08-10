@@ -16,5 +16,3 @@ This folder contains a selection of business case projects and analyses, coverin
 | 11 | [video_service_cohort_analysis](./video_service_cohort_analysis) | Analysis of customer lifetime value (LTV) for a video service platform. | `ltv` `cohort analysis` `retention` |
 | 12 | [ab_test_analysis](./ab_test_analysis) | Design and implementation of controlled A/B tests to measure feature impact and user behavior. | `a/b testing` `experimentation` `statistics` |
 | 13 | [ltv_cac_dashboard](./ltv_cac_dashboard) | Dashboard comparing customer lifetime value (LTV) against customer acquisition cost (CAC) to gauge business efficiency. | `ltv` `cac` `dashboard` `visualization` |
-
-Each project folder may contain scripts, notebooks, datasets, and documentation relevant to its analysis or modeling tasks.
